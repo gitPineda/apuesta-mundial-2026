@@ -1,0 +1,26 @@
+{
+  "name": "apuesta-mundial-2026",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo para app movil y backend de predicciones/apuestas Mundial FIFA 2026.",
+  "workspaces": [
+    "apps/mobile",
+    "services/api"
+  ],
+  "scripts": {
+    "api:dev": "npm --workspace services/api run start:dev",
+    "api:build": "npm --workspace services/api run build",
+    "api:migrate": "npm --workspace services/api run db:migrate",
+    "api:seed": "npm --workspace services/api run db:seed",
+    "mobile:start": "npm --workspace apps/mobile run start",
+    "mobile:android": "npm --workspace apps/mobile run android",
+    "mobile:ios": "npm --workspace apps/mobile run ios",
+    "mobile:typecheck": "npm --workspace apps/mobile run typecheck",
+    "build": "npm run api:build",
+    "typecheck": "npm run mobile:typecheck",
+    "check": "npm run api:build && npm run mobile:typecheck"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

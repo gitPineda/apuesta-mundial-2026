@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Apuesta Mundial 2026",
+    "slug": "apuesta-mundial-2026",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "usesCleartextTraffic": true,
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B1220"
+      },
+      "package": "com.apuestamundial.mobile"
+    },
+    "extra": {
+      "apiUrl": "$EXPO_PUBLIC_API_URL",
+      "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL"
+    }
+  }
+}

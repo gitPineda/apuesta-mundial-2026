@@ -1,0 +1,19 @@
+{
+  "tournament": {
+    "name": "Mundial FIFA 2026",
+    "startsAt": "2026-06-11",
+    "endsAt": "2026-07-19"
+  },
+  "matches": [
+    {
+      "externalId": "demo-ecu-bra-20260611",
+      "homeTeamCode": "ECU",
+      "awayTeamCode": "BRA",
+      "kickoffAt": "2026-06-11T18:00:00Z",
+      "phase": "group_stage",
+      "groupName": "A",
+      "venue": "Estadio Azteca",
+      "bettingCutoffMinutes": 60
+    }
+  ]
+}
