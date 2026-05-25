@@ -2,7 +2,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { InfoCard } from '../../components/InfoCard';
 import { Screen } from '../../components/Screen';
-import { api } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
@@ -10,13 +9,6 @@ import { AppScreenProps } from '../../navigation/types';
 
 export function PaymentScreen({ navigation, route }: AppScreenProps<'Payment'>) {
   const { betId, amount } = route.params;
-
-  async function initiatePayphone() {
-    await api.post('/payments/payphone/initiate', {
-      betId,
-      idempotencyKey: `payphone-${betId}`,
-    });
-  }
 
   return (
     <Screen>
@@ -33,8 +25,8 @@ export function PaymentScreen({ navigation, route }: AppScreenProps<'Payment'>) 
 
       <InfoCard>
         <Text style={styles.cardTitle}>PayPhone</Text>
-        <Text style={styles.text}>Integracion reservada para fase 3. El backend ya guarda el intento de pago.</Text>
-        <Button title="Crear intento PayPhone" variant="secondary" onPress={initiatePayphone} />
+        <Text style={styles.text}>Metodo visible para fase posterior. Aun no esta habilitado.</Text>
+        <Button title="PayPhone no disponible" variant="secondary" onPress={() => undefined} disabled />
       </InfoCard>
     </Screen>
   );

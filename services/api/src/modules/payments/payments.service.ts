@@ -1,5 +1,4 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { BusinessError } from '../../common/errors/business-error';
 import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
@@ -9,7 +8,6 @@ import { InitiatePayphoneDto } from './dto/initiate-payphone.dto';
 @Injectable()
 export class PaymentsService {
   constructor(
-    private readonly config: ConfigService,
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
   ) {}
@@ -107,58 +105,13 @@ export class PaymentsService {
   }
 
   async initiatePayphone(userId: string, dto: InitiatePayphoneDto) {
-    const result = await this.db.transaction(async (client) => {
-      const betResult = await client.query(
-        `select * from bets where id = $1 and user_id = $2 for update`,
-        [dto.betId, userId],
-      );
-      const bet = betResult.rows[0];
-      if (!bet) {
-        throw new BusinessError('BET_NOT_FOUND', 'La apuesta no existe.', HttpStatus.NOT_FOUND);
-      }
-      if (bet.status !== 'pending_payment') {
-        throw new BusinessError('BET_NOT_PAYABLE', 'La apuesta no esta pendiente de pago.');
-      }
-
-      const existing = await client.query(
-        `select * from payments where idempotency_key = $1 limit 1`,
-        [dto.idempotencyKey],
-      );
-      if (existing.rows[0]) {
-        return existing.rows[0];
-      }
-
-      const paymentResult = await client.query(
-        `
-        insert into payments(bet_id, user_id, provider, amount, status, idempotency_key, metadata)
-        values ($1,$2,'payphone',$3,'created',$4,$5)
-        returning *
-        `,
-        [
-          bet.id,
-          userId,
-          bet.total_stake,
-          dto.idempotencyKey,
-          {
-            apiBaseUrl: this.config.get<string>('PAYPHONE_API_BASE_URL'),
-            storeIdConfigured: Boolean(this.config.get<string>('PAYPHONE_STORE_ID')),
-          },
-        ],
-      );
-
-      await client.query(
-        `update bets set source = 'payphone', payment_status = 'created' where id = $1`,
-        [bet.id],
-      );
-
-      return paymentResult.rows[0];
-    });
-
-    return {
-      payment: result,
-      nextAction: 'PAYPHONE_INTEGRATION_PENDING',
-      message: 'Endpoint base creado. La llamada real a PayPhone se implementa en la fase 3.',
-    };
+    void userId;
+    void dto;
+    throw new BusinessError(
+      'PAYPHONE_DISABLED',
+      'PayPhone aun no esta habilitado. Usa transferencia bancaria.',
+      HttpStatus.NOT_IMPLEMENTED,
+    );
   }
 
   async getPayment(userId: string, paymentId: string) {

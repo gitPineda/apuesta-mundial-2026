@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { AppPopup } from '../../components/AppPopup';
 import { Button } from '../../components/Button';
-import { ErrorText } from '../../components/ErrorText';
 import { InfoCard } from '../../components/InfoCard';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { Screen } from '../../components/Screen';
 import { TextField } from '../../components/TextField';
 import { api } from '../../services/api';
@@ -29,19 +30,26 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
   const [senderName, setSenderName] = useState('');
   const [senderDocument, setSenderDocument] = useState('');
   const [transferDate, setTransferDate] = useState(new Date().toISOString().slice(0, 10));
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [popup, setPopup] = useState<{ title: string; message: string; onAccept?: () => void } | null>(null);
 
   useEffect(() => {
     api
       .get<BankAccount[]>('/payments/bank-accounts')
       .then((accounts) => setBankAccount(accounts[0] ?? null))
-      .catch(() => setBankAccount(null));
+      .catch(() => {
+        setBankAccount(null);
+        setPopup({
+          title: 'Cuenta no disponible',
+          message: 'No se pudieron cargar las cuentas bancarias activas.',
+        });
+      })
+      .finally(() => setLoadingAccounts(false));
   }, []);
 
   async function submit() {
-    setError('');
-    setMessage('');
+    setSubmitting(true);
     try {
       await api.post('/payments/bank-transfer', {
         betId,
@@ -52,10 +60,18 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
         senderDocument,
         transferDate,
       });
-      setMessage('Comprobante enviado. La apuesta queda pendiente de revision.');
-      setTimeout(() => navigation.navigate('MainTabs', { screen: 'HistoryTab' }), 800);
+      setPopup({
+        title: 'Transferencia enviada',
+        message: 'Comprobante enviado. La apuesta queda pendiente de revision.',
+        onAccept: () => navigation.navigate('MainTabs', { screen: 'HistoryTab' }),
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo registrar la transferencia.');
+      setPopup({
+        title: 'No se pudo enviar',
+        message: err instanceof Error ? err.message : 'No se pudo registrar la transferencia.',
+      });
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -72,7 +88,7 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
           <>
             <Text style={styles.bankLine}>{bankAccount.bank_name}</Text>
             <Text style={styles.bankLine}>{bankAccount.account_holder}</Text>
-            <Text style={styles.bankLine}>{bankAccount.account_type} · {bankAccount.account_number}</Text>
+            <Text style={styles.bankLine}>{bankAccount.account_type} - {bankAccount.account_number}</Text>
             {bankAccount.instructions ? <Text style={styles.bankHint}>{bankAccount.instructions}</Text> : null}
           </>
         ) : (
@@ -87,14 +103,27 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
         <TextField label="Nombre del depositante" value={senderName} onChangeText={setSenderName} />
         <TextField label="Documento del depositante" value={senderDocument} onChangeText={setSenderDocument} />
         <TextField label="Fecha de transferencia" value={transferDate} onChangeText={setTransferDate} />
-        <ErrorText message={error} />
-        {message ? <Text style={styles.success}>{message}</Text> : null}
         <Button
           title="Enviar a revision"
           onPress={submit}
+          loading={submitting}
           disabled={!bankAccount || !transferNumber || !senderBank || !senderName || !transferDate}
         />
       </InfoCard>
+      <LoadingOverlay
+        visible={loadingAccounts || submitting}
+        message={submitting ? 'Enviando transferencia...' : 'Cargando cuenta bancaria...'}
+      />
+      <AppPopup
+        visible={Boolean(popup)}
+        title={popup?.title ?? ''}
+        message={popup?.message ?? ''}
+        onAccept={() => {
+          const action = popup?.onAccept;
+          setPopup(null);
+          action?.();
+        }}
+      />
     </Screen>
   );
 }
@@ -115,10 +144,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '800',
     fontSize: 17,
-  },
-  success: {
-    color: colors.success,
-    fontWeight: '800',
   },
   bankLine: {
     color: colors.text,

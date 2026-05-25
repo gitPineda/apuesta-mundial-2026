@@ -11,18 +11,24 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.100.6:4000/api"
+        "EXPO_PUBLIC_API_URL": "https://apuesta-mundial-api.onrender.com/api"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://apuesta-mundial-api.onrender.com/api"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://apuesta-mundial-api.onrender.com/api"
       }
     }
   }

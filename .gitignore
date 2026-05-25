@@ -6,6 +6,8 @@ build/
 .expo/
 .expo-shared/
 coverage/
+.jest-cache/
+services/api/.jest-cache/
 apps/mobile/android/
 apps/mobile/ios/
 *.apk

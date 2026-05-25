@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { AppPopup } from '../../components/AppPopup';
 import { Button } from '../../components/Button';
 import { InfoCard } from '../../components/InfoCard';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { Screen } from '../../components/Screen';
 import { TextField } from '../../components/TextField';
 import { api } from '../../services/api';
@@ -15,27 +17,51 @@ export function AdminSettingsScreen() {
   const [platformFeePercent, setPlatformFeePercent] = useState('4');
   const [operatorFeePercent, setOperatorFeePercent] = useState('6');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
 
   function load() {
     setLoading(true);
     api
       .get<any[]>('/admin/fee-settings')
       .then(setItems)
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar configuracion.'))
+      .catch((err) =>
+        setPopup({
+          title: 'No se pudo cargar',
+          message: err instanceof Error ? err.message : 'No se pudo cargar configuracion.',
+        }),
+      )
       .finally(() => setLoading(false));
   }
 
   useEffect(load, []);
 
   async function create() {
-    await api.post('/admin/fee-settings', {
-      name,
-      platformFeePercent: Number(platformFeePercent),
-      operatorFeePercent: Number(operatorFeePercent),
-      isActive: true,
-    });
-    load();
+    const platformFee = Number(platformFeePercent.replace(',', '.'));
+    const operatorFee = Number(operatorFeePercent.replace(',', '.'));
+    if (!name.trim() || !Number.isFinite(platformFee) || !Number.isFinite(operatorFee)) {
+      setPopup({ title: 'Datos invalidos', message: 'Ingresa nombre y porcentajes validos.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.post('/admin/fee-settings', {
+        name,
+        platformFeePercent: platformFee,
+        operatorFeePercent: operatorFee,
+        isActive: true,
+      });
+      setPopup({ title: 'Configuracion guardada', message: 'Las comisiones quedaron activas.' });
+      load();
+    } catch (err) {
+      setPopup({
+        title: 'No se pudo guardar',
+        message: err instanceof Error ? err.message : 'No se pudo guardar configuracion.',
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -44,13 +70,11 @@ export function AdminSettingsScreen() {
         <Text style={styles.title}>Configuracion</Text>
         <Text style={styles.subtitle}>Comisiones aplicadas al pago ganador.</Text>
       </View>
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
       <InfoCard>
         <TextField label="Nombre" value={name} onChangeText={setName} />
         <TextField label="Comision app %" value={platformFeePercent} onChangeText={setPlatformFeePercent} keyboardType="decimal-pad" />
         <TextField label="Comision operativa %" value={operatorFeePercent} onChangeText={setOperatorFeePercent} keyboardType="decimal-pad" />
-        <Button title="Crear y activar" onPress={create} />
+        <Button title="Crear y activar" onPress={create} loading={saving} />
       </InfoCard>
       {items.map((item) => (
         <InfoCard key={item.id}>
@@ -60,6 +84,16 @@ export function AdminSettingsScreen() {
           <Text style={item.is_active ? styles.active : styles.line}>{item.is_active ? 'Activa' : 'Inactiva'}</Text>
         </InfoCard>
       ))}
+      <LoadingOverlay
+        visible={loading || saving}
+        message={saving ? 'Guardando configuracion...' : 'Cargando configuracion...'}
+      />
+      <AppPopup
+        visible={Boolean(popup)}
+        title={popup?.title ?? ''}
+        message={popup?.message ?? ''}
+        onAccept={() => setPopup(null)}
+      />
     </Screen>
   );
 }
@@ -68,7 +102,6 @@ const styles = StyleSheet.create({
   header: { gap: spacing.sm },
   title: { ...typography.title, color: colors.text },
   subtitle: { color: colors.textMuted },
-  error: { color: colors.danger },
   cardTitle: { color: colors.text, fontWeight: '900', fontSize: 17 },
   line: { color: colors.textMuted },
   active: { color: colors.success, fontWeight: '900' },

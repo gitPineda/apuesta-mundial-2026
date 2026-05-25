@@ -1,8 +1,9 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppPopup } from '../../components/AppPopup';
 import { Button } from '../../components/Button';
-import { ErrorText } from '../../components/ErrorText';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { PasswordField } from '../../components/PasswordField';
 import { Screen } from '../../components/Screen';
 import { TextField } from '../../components/TextField';
@@ -19,15 +20,17 @@ export function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
 
   async function submit() {
-    setError('');
     setLoading(true);
     try {
       await signIn(email.trim(), password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo iniciar sesion.');
+      setPopup({
+        title: 'No se pudo ingresar',
+        message: err instanceof Error ? err.message : 'No se pudo iniciar sesion.',
+      });
     } finally {
       setLoading(false);
     }
@@ -43,7 +46,6 @@ export function LoginScreen({ navigation }: Props) {
       <View style={styles.form}>
         <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <PasswordField label="Clave" value={password} onChangeText={setPassword} />
-        <ErrorText message={error} />
         <Button title="Ingresar" onPress={submit} loading={loading} disabled={!email || !password} />
       </View>
 
@@ -55,6 +57,13 @@ export function LoginScreen({ navigation }: Props) {
           <Text style={styles.linkMuted}>Recuperar clave</Text>
         </Pressable>
       </View>
+      <LoadingOverlay visible={loading} message="Iniciando sesion..." />
+      <AppPopup
+        visible={Boolean(popup)}
+        title={popup?.title ?? ''}
+        message={popup?.message ?? ''}
+        onAccept={() => setPopup(null)}
+      />
     </Screen>
   );
 }

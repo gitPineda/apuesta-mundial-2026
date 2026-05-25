@@ -47,7 +47,7 @@ GET    /bets
 GET    /bets/:id
 POST   /payments/bank-transfer
 GET    /payments/bank-accounts
-POST   /payments/payphone/initiate
+POST   /payments/payphone/initiate  # deshabilitado: devuelve PAYPHONE_DISABLED
 GET    /payments/:id
 ```
 

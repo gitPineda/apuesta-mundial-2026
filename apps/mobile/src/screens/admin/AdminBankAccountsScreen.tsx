@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppPopup } from '../../components/AppPopup';
 import { Button } from '../../components/Button';
 import { InfoCard } from '../../components/InfoCard';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { Screen } from '../../components/Screen';
 import { TextField } from '../../components/TextField';
 import { api } from '../../services/api';
@@ -31,16 +33,20 @@ export function AdminBankAccountsScreen() {
   const [instructions, setInstructions] = useState('');
   const [isActiveText, setIsActiveText] = useState('true');
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
 
   function load() {
     setLoading(true);
-    setError('');
     api
       .get<BankAccount[]>('/admin/bank-accounts')
       .then(setItems)
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar cuentas.'))
+      .catch((err) =>
+        setPopup({
+          title: 'No se pudo cargar',
+          message: err instanceof Error ? err.message : 'No se pudieron cargar cuentas.',
+        }),
+      )
       .finally(() => setLoading(false));
   }
 
@@ -69,8 +75,7 @@ export function AdminBankAccountsScreen() {
   }
 
   async function save() {
-    setMessage('');
-    setError('');
+    setSaving(true);
     const body = {
       bankName,
       accountHolder,
@@ -86,11 +91,16 @@ export function AdminBankAccountsScreen() {
       } else {
         await api.post('/admin/bank-accounts', body);
       }
-      setMessage('Cuenta guardada.');
+      setPopup({ title: 'Cuenta guardada', message: 'La cuenta bancaria fue actualizada.' });
       clearForm();
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la cuenta.');
+      setPopup({
+        title: 'No se pudo guardar',
+        message: err instanceof Error ? err.message : 'No se pudo guardar la cuenta.',
+      });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -100,9 +110,6 @@ export function AdminBankAccountsScreen() {
         <Text style={styles.title}>Cuentas bancarias</Text>
         <Text style={styles.subtitle}>Datos que vera el usuario para transferir el valor de la apuesta.</Text>
       </View>
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {message ? <Text style={styles.success}>{message}</Text> : null}
 
       <InfoCard>
         <Text style={styles.cardTitle}>{selectedId ? 'Editar cuenta' : 'Nueva cuenta'}</Text>
@@ -113,7 +120,12 @@ export function AdminBankAccountsScreen() {
         <TextField label="Documento/RUC" value={documentNumber} onChangeText={setDocumentNumber} />
         <TextField label="Instrucciones" value={instructions} onChangeText={setInstructions} multiline />
         <TextField label="Activa true/false" value={isActiveText} onChangeText={setIsActiveText} autoCapitalize="none" />
-        <Button title="Guardar cuenta" onPress={save} disabled={!bankName || !accountHolder || !accountNumber || !accountType} />
+        <Button
+          title="Guardar cuenta"
+          onPress={save}
+          loading={saving}
+          disabled={!bankName || !accountHolder || !accountNumber || !accountType}
+        />
         {selectedId ? <Button title="Nueva cuenta" variant="secondary" onPress={clearForm} /> : null}
       </InfoCard>
 
@@ -127,6 +139,16 @@ export function AdminBankAccountsScreen() {
           </InfoCard>
         </Pressable>
       ))}
+      <LoadingOverlay
+        visible={loading || saving}
+        message={saving ? 'Guardando cuenta...' : 'Cargando cuentas bancarias...'}
+      />
+      <AppPopup
+        visible={Boolean(popup)}
+        title={popup?.title ?? ''}
+        message={popup?.message ?? ''}
+        onAccept={() => setPopup(null)}
+      />
     </Screen>
   );
 }
@@ -135,8 +157,6 @@ const styles = StyleSheet.create({
   header: { gap: spacing.sm },
   title: { ...typography.title, color: colors.text },
   subtitle: { color: colors.textMuted, lineHeight: 20 },
-  error: { color: colors.danger },
-  success: { color: colors.success, fontWeight: '900' },
   cardTitle: { color: colors.text, fontWeight: '900', fontSize: 17 },
   line: { color: colors.textMuted },
   active: { color: colors.success, fontWeight: '900' },

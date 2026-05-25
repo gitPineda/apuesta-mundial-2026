@@ -6,7 +6,7 @@ Aplicacion movil para predicciones/apuestas deportivas del Mundial FIFA 2026, co
 
 ## Objetivo
 
-Crear una app donde los usuarios puedan registrarse, ver el calendario del Mundial 2026, seleccionar partidos, crear predicciones/apuestas, pagar por transferencia o PayPhone en fases posteriores, y consultar su historial. El sistema debe ser administrable, auditable y preparado para crecer hacia produccion.
+Crear una app donde los usuarios puedan registrarse, ver el calendario del Mundial 2026, seleccionar partidos, crear predicciones/apuestas, pagar por transferencia y consultar su historial. PayPhone queda visible como opcion futura, pero deshabilitado. El sistema debe ser administrable, auditable y preparado para crecer hacia produccion.
 
 ## Stack
 
@@ -14,7 +14,7 @@ Crear una app donde los usuarios puedan registrarse, ver el calendario del Mundi
 - Backend: NestJS.
 - Base de datos: Supabase PostgreSQL.
 - Autenticacion: JWT propio controlado por NestJS. Supabase se usa como PostgreSQL.
-- Pagos: transferencia bancaria/manual y PayPhone.
+- Pagos: transferencia bancaria/manual. PayPhone visible, pero deshabilitado hasta una fase posterior.
 - Storage: Supabase Storage para comprobantes.
 - Deploy backend: Render.
 
@@ -276,6 +276,8 @@ bet = pending_payment o void
 
 ## Flujo De Pago Con PayPhone
 
+Estado actual: no habilitado. El boton se muestra en la app como opcion futura, pero no permite iniciar pagos.
+
 ```txt
 Usuario elige PayPhone
   -> backend crea intento de pago
@@ -347,7 +349,7 @@ POST   /bets/:id/cancel
 ### Pagos
 
 ```txt
-POST   /payments/payphone/initiate
+POST   /payments/payphone/initiate  # deshabilitado: devuelve PAYPHONE_DISABLED
 POST   /payments/payphone/webhook
 POST   /payments/bank-transfer
 POST   /payments/:id/receipt

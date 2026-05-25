@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppPopup } from '../../components/AppPopup';
 import { Button } from '../../components/Button';
 import { AdminMatchPicker } from '../../components/AdminMatchPicker';
 import { InfoCard } from '../../components/InfoCard';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { Screen } from '../../components/Screen';
 import { TextField } from '../../components/TextField';
 import { api } from '../../services/api';
@@ -18,18 +20,18 @@ export function AdminOddsScreen() {
   const [selectedOdd, setSelectedOdd] = useState<{ id: string; label: string } | null>(null);
   const [decimalOdds, setDecimalOdds] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
 
   async function loadMarkets(matchId = selectedMatch?.id) {
     if (!matchId) return;
-    setError('');
-    setMessage('');
     setLoading(true);
     try {
       setMarkets(await api.get<Market[]>(`/admin/matches/${matchId}/markets`));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron cargar cuotas.');
+      setPopup({
+        title: 'No se pudo cargar',
+        message: err instanceof Error ? err.message : 'No se pudieron cargar cuotas.',
+      });
     } finally {
       setLoading(false);
     }
@@ -37,23 +39,27 @@ export function AdminOddsScreen() {
 
   async function saveOdd() {
     if (!selectedOdd) return;
-    setError('');
-    setMessage('');
     const parsedOdds = Number(decimalOdds.replace(',', '.'));
     if (!Number.isFinite(parsedOdds) || parsedOdds < 1) {
-      setError('El multiplicador debe ser mayor o igual a 1.00.');
+      setPopup({ title: 'Multiplicador invalido', message: 'El multiplicador debe ser mayor o igual a 1.00.' });
       return;
     }
 
+    setLoading(true);
     try {
       await api.post(`/admin/odds/${selectedOdd.id}`, {
         decimalOdds: parsedOdds,
         status: 'active',
       });
-      setMessage('Cuota actualizada.');
+      setPopup({ title: 'Cuota actualizada', message: 'El multiplicador fue guardado.' });
       await loadMarkets();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo actualizar la cuota.');
+      setPopup({
+        title: 'No se pudo guardar',
+        message: err instanceof Error ? err.message : 'No se pudo actualizar la cuota.',
+      });
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -70,9 +76,6 @@ export function AdminOddsScreen() {
           void loadMarkets(match.id);
         }}
       />
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {message ? <Text style={styles.success}>{message}</Text> : null}
       {selectedOdd ? (
         <InfoCard>
           <Text style={styles.cardTitle}>{selectedOdd.label}</Text>
@@ -98,6 +101,13 @@ export function AdminOddsScreen() {
           ))}
         </InfoCard>
       ))}
+      <LoadingOverlay visible={loading} message="Procesando cuotas..." />
+      <AppPopup
+        visible={Boolean(popup)}
+        title={popup?.title ?? ''}
+        message={popup?.message ?? ''}
+        onAccept={() => setPopup(null)}
+      />
     </Screen>
   );
 }
@@ -106,8 +116,6 @@ const styles = StyleSheet.create({
   header: { gap: spacing.sm },
   title: { ...typography.title, color: colors.text },
   subtitle: { color: colors.textMuted },
-  error: { color: colors.danger },
-  success: { color: colors.success, fontWeight: '900' },
   cardTitle: { color: colors.text, fontWeight: '900', fontSize: 17 },
   oddRow: {
     minHeight: 46,

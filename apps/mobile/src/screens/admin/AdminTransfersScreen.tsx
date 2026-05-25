@@ -1,8 +1,10 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { AppPopup } from '../../components/AppPopup';
 import { Button } from '../../components/Button';
 import { InfoCard } from '../../components/InfoCard';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { Screen } from '../../components/Screen';
 import { TextField } from '../../components/TextField';
 import { api } from '../../services/api';
@@ -24,29 +26,56 @@ interface TransferReceipt {
 export function AdminTransfersScreen() {
   const [items, setItems] = useState<TransferReceipt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('Comprobante no valido');
 
   const load = useCallback(() => {
     setLoading(true);
-    setError('');
     api
       .get<TransferReceipt[]>('/admin/transfers/pending')
       .then(setItems)
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar transferencias.'))
+      .catch((err) =>
+        setPopup({
+          title: 'No se pudo cargar',
+          message: err instanceof Error ? err.message : 'No se pudieron cargar transferencias.',
+        }),
+      )
       .finally(() => setLoading(false));
   }, []);
 
   useFocusEffect(load);
 
   async function approve(id: string) {
-    await api.post(`/admin/transfers/${id}/approve`);
-    load();
+    setProcessing(true);
+    try {
+      await api.post(`/admin/transfers/${id}/approve`);
+      setPopup({ title: 'Transferencia aprobada', message: 'La apuesta quedo activa.' });
+      load();
+    } catch (err) {
+      setPopup({
+        title: 'No se pudo aprobar',
+        message: err instanceof Error ? err.message : 'No se pudo aprobar la transferencia.',
+      });
+    } finally {
+      setProcessing(false);
+    }
   }
 
   async function reject(id: string) {
-    await api.post(`/admin/transfers/${id}/reject`, { reason: rejectReason });
-    load();
+    setProcessing(true);
+    try {
+      await api.post(`/admin/transfers/${id}/reject`, { reason: rejectReason });
+      setPopup({ title: 'Transferencia rechazada', message: 'El pago fue marcado como rechazado.' });
+      load();
+    } catch (err) {
+      setPopup({
+        title: 'No se pudo rechazar',
+        message: err instanceof Error ? err.message : 'No se pudo rechazar la transferencia.',
+      });
+    } finally {
+      setProcessing(false);
+    }
   }
 
   return (
@@ -55,8 +84,6 @@ export function AdminTransfersScreen() {
         <Text style={styles.title}>Transferencias</Text>
         <Text style={styles.subtitle}>Comprobantes pendientes de revision.</Text>
       </View>
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
       {!loading && items.length === 0 ? <Text style={styles.empty}>No hay transferencias pendientes.</Text> : null}
       <TextField label="Motivo de rechazo" value={rejectReason} onChangeText={setRejectReason} />
       {items.map((item) => (
@@ -71,6 +98,16 @@ export function AdminTransfersScreen() {
           </View>
         </InfoCard>
       ))}
+      <LoadingOverlay
+        visible={loading || processing}
+        message={processing ? 'Procesando transferencia...' : 'Cargando transferencias...'}
+      />
+      <AppPopup
+        visible={Boolean(popup)}
+        title={popup?.title ?? ''}
+        message={popup?.message ?? ''}
+        onAccept={() => setPopup(null)}
+      />
     </Screen>
   );
 }
@@ -79,7 +116,6 @@ const styles = StyleSheet.create({
   header: { gap: spacing.sm },
   title: { ...typography.title, color: colors.text },
   subtitle: { color: colors.textMuted },
-  error: { color: colors.danger },
   empty: { color: colors.textMuted },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: '900' },
   line: { color: colors.textMuted },

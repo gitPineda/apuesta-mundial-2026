@@ -130,8 +130,7 @@ export class AuthService {
       const emailResult = await this.mail.sendPasswordResetCode(dto.email, code, ttl);
       if (!emailResult.sent) {
         return {
-          message: 'Si el email existe, se genero un codigo de recuperacion.',
-          resetCode: code,
+          message: 'Si el email existe, no pudimos enviar el codigo en este momento.',
           emailSent: false,
         };
       }
