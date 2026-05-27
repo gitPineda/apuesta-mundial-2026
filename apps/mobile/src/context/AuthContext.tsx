@@ -35,6 +35,11 @@ interface LoginResponse {
   user: StoredUser;
 }
 
+interface ForgotPasswordResponse {
+  message: string;
+  emailSent: boolean;
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -90,7 +95,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await api.post('/auth/register', { email, password, username }, false);
       },
       async resetPassword(email) {
-        await api.post('/auth/forgot-password', { email }, false);
+        const response = await api.post<ForgotPasswordResponse>('/auth/forgot-password', { email }, false);
+        if (!response.emailSent) {
+          throw new Error(response.message || 'No se pudo enviar el codigo de recuperacion.');
+        }
       },
       async confirmResetPassword(email, code, newPassword) {
         await api.post('/auth/reset-password', { email, code, newPassword }, false);
