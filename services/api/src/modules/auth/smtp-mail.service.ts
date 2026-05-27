@@ -36,13 +36,14 @@ export class SmtpMailService {
     const port = Number(this.config.get<string>('SMTP_PORT', '587'));
     const secure = this.config.get<string>('SMTP_SECURE', 'false') === 'true';
     const timeoutMs = Number(this.config.get<string>('SMTP_TIMEOUT_MS', '10000'));
+    const heloHost = this.hostname();
     const user = this.config.getOrThrow<string>('SMTP_USER');
     const pass = this.config.getOrThrow<string>('SMTP_PASS');
     const fromName = this.config.get<string>('SMTP_FROM_NAME', 'Soporte');
     const from = `${fromName} <${user}>`;
 
     this.logger.log(
-      `[${requestId}] smtp.send.start to=${this.maskEmail(options.to)} host=${host} port=${port} secure=${secure} timeoutMs=${timeoutMs}`,
+      `[${requestId}] smtp.send.start to=${this.maskEmail(options.to)} host=${host} port=${port} secure=${secure} timeoutMs=${timeoutMs} heloHost=${heloHost}`,
     );
 
     let socket: net.Socket | tls.TLSSocket = secure
@@ -51,15 +52,15 @@ export class SmtpMailService {
     this.applySocketTimeout(socket, timeoutMs, requestId);
 
     const reader = this.createReader(socket);
-    await reader.read(timeoutMs);
-    await this.command(socket, reader, `EHLO ${this.hostname()}`, timeoutMs);
+    await reader.read(timeoutMs, 'greeting');
+    await this.command(socket, reader, `EHLO ${heloHost}`, timeoutMs, 'ehlo');
 
     if (!secure) {
-      await this.command(socket, reader, 'STARTTLS', timeoutMs);
+      await this.command(socket, reader, 'STARTTLS', timeoutMs, 'starttls');
       socket = tls.connect({ socket, servername: host });
       this.applySocketTimeout(socket, timeoutMs, requestId);
       const tlsReader = this.createReader(socket);
-      await this.command(socket, tlsReader, `EHLO ${this.hostname()}`, timeoutMs);
+      await this.command(socket, tlsReader, `EHLO ${heloHost}`, timeoutMs, 'ehlo_tls');
       await this.authenticate(socket, tlsReader, user, pass, timeoutMs);
       await this.sendEnvelope(socket, tlsReader, from, options, timeoutMs);
       this.logger.log(
@@ -106,7 +107,7 @@ export class SmtpMailService {
     timeoutMs: number,
   ) {
     const payload = Buffer.from(`\0${user}\0${pass}`).toString('base64');
-    await this.command(socket, reader, `AUTH PLAIN ${payload}`, timeoutMs);
+    await this.command(socket, reader, `AUTH PLAIN ${payload}`, timeoutMs, 'auth_plain');
   }
 
   private async sendEnvelope(
@@ -116,12 +117,12 @@ export class SmtpMailService {
     options: SendMailOptions,
     timeoutMs: number,
   ) {
-    await this.command(socket, reader, `MAIL FROM:<${this.extractEmail(from)}>`, timeoutMs);
-    await this.command(socket, reader, `RCPT TO:<${options.to}>`, timeoutMs);
-    await this.command(socket, reader, 'DATA', timeoutMs);
+    await this.command(socket, reader, `MAIL FROM:<${this.extractEmail(from)}>`, timeoutMs, 'mail_from');
+    await this.command(socket, reader, `RCPT TO:<${options.to}>`, timeoutMs, 'rcpt_to');
+    await this.command(socket, reader, 'DATA', timeoutMs, 'data');
     socket.write(`${this.formatMessage(from, options)}\r\n.\r\n`);
-    await reader.read(timeoutMs);
-    await this.command(socket, reader, 'QUIT', timeoutMs);
+    await reader.read(timeoutMs, 'message_body');
+    await this.command(socket, reader, 'QUIT', timeoutMs, 'quit');
     socket.end();
   }
 
@@ -130,9 +131,10 @@ export class SmtpMailService {
     reader: ReturnType<SmtpMailService['createReader']>,
     command: string,
     timeoutMs: number,
+    stage: string,
   ) {
     socket.write(`${command}\r\n`);
-    const response = await reader.read(timeoutMs);
+    const response = await reader.read(timeoutMs, stage);
     const code = Number(response.slice(0, 3));
     if (code >= 400) {
       throw new Error(`SMTP command failed: ${command} -> ${response}`);
@@ -165,7 +167,7 @@ export class SmtpMailService {
     });
 
     return {
-      read: (timeoutMs: number) =>
+      read: (timeoutMs: number, stage: string) =>
         new Promise<string>((resolve) => {
           const response = this.takeCompleteResponse(buffer);
           if (response) {
@@ -178,7 +180,7 @@ export class SmtpMailService {
             timer: setTimeout(() => {
               const index = waiters.indexOf(waiter);
               if (index >= 0) waiters.splice(index, 1);
-              resolve('500 SMTP_READ_TIMEOUT');
+              resolve(`500 SMTP_READ_TIMEOUT stage=${stage}`);
             }, timeoutMs),
           };
           waiters.push(waiter);
@@ -215,7 +217,7 @@ export class SmtpMailService {
   }
 
   private hostname() {
-    return 'apuesta-mundial-mvp.local';
+    return this.config.get<string>('SMTP_HELO_HOST', 'apuesta-mundial-api.onrender.com');
   }
 
   private applySocketTimeout(socket: net.Socket | tls.TLSSocket, timeoutMs: number, requestId: string) {
