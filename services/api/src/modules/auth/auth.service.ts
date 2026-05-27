@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -18,6 +18,8 @@ interface AppJwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly jwt: JwtService,
@@ -112,7 +114,12 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto) {
+  async forgotPassword(dto: ForgotPasswordDto, requestId = this.createRequestId()) {
+    const startedAt = Date.now();
+    const email = dto.email.trim().toLowerCase();
+    this.logger.log(
+      `[${requestId}] auth.forgotPassword.start email=${this.maskEmail(email)}`,
+    );
     const code = this.generateCode();
     const ttl = Number(this.config.get<string>('PASSWORD_RESET_CODE_TTL_MINUTES', '15'));
     const result = await this.db.query(
@@ -123,11 +130,20 @@ export class AuthService {
           password_reset_attempts = 0
       where lower(email) = lower($1)
       `,
-      [dto.email, code, ttl],
+      [email, code, ttl],
+    );
+    this.logger.log(
+      `[${requestId}] auth.forgotPassword.dbUpdated email=${this.maskEmail(email)} rowCount=${result.rowCount}`,
     );
 
     if (result.rowCount) {
-      const emailResult = await this.mail.sendPasswordResetCode(dto.email, code, ttl);
+      this.logger.log(
+        `[${requestId}] auth.forgotPassword.smtpStart email=${this.maskEmail(email)}`,
+      );
+      const emailResult = await this.mail.sendPasswordResetCode(email, code, ttl, requestId);
+      this.logger.log(
+        `[${requestId}] auth.forgotPassword.smtpResult email=${this.maskEmail(email)} sent=${emailResult.sent} reason=${emailResult.reason ?? 'none'} elapsedMs=${Date.now() - startedAt}`,
+      );
       if (!emailResult.sent) {
         return {
           message: 'Si el email existe, no pudimos enviar el codigo en este momento.',
@@ -136,6 +152,9 @@ export class AuthService {
       }
     }
 
+    this.logger.log(
+      `[${requestId}] auth.forgotPassword.done email=${this.maskEmail(email)} emailSent=${Boolean(result.rowCount)} elapsedMs=${Date.now() - startedAt}`,
+    );
     return {
       message: 'Si el email existe, enviaremos un codigo de recuperacion.',
       emailSent: Boolean(result.rowCount),
@@ -240,5 +259,15 @@ export class AuthService {
 
   private generateCode() {
     return randomInt(100000, 999999).toString();
+  }
+
+  private createRequestId() {
+    return `api-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private maskEmail(email: string) {
+    const [name, domain] = email.split('@');
+    if (!name || !domain) return 'invalid-email';
+    return `${name.slice(0, 2)}***@${domain}`;
   }
 }

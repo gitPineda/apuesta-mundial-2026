@@ -24,9 +24,11 @@ export function ResetPasswordScreen({ navigation }: Props) {
   async function submit() {
     setPopup(null);
     setLoading(true);
+    const cleanEmail = email.trim();
+    console.log(`[auth.resetPassword] start email=${cleanEmail}`);
     try {
-      const cleanEmail = email.trim();
       await resetPassword(cleanEmail);
+      console.log(`[auth.resetPassword] success email=${cleanEmail}`);
       setSentEmail(cleanEmail);
       setPopup({
         title: 'Codigo enviado',
@@ -34,6 +36,11 @@ export function ResetPasswordScreen({ navigation }: Props) {
         next: 'confirm',
       });
     } catch (err) {
+      console.log(
+        `[auth.resetPassword] error email=${cleanEmail} message=${
+          err instanceof Error ? err.message : 'unknown'
+        }`,
+      );
       setPopup({
         title: 'No se pudo enviar',
         message: err instanceof Error ? err.message : 'No se pudo enviar la recuperacion.',
