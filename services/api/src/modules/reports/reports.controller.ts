@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/roles.enum';
@@ -22,6 +22,16 @@ export class ReportsController {
   @Get('general-summary')
   generalSummary() {
     return this.reports.generalSummary();
+  }
+
+  @Get('bets')
+  betsReport(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.reports.betsReport({ fromDate, toDate, page, pageSize });
   }
 
   @Get('matches/:id/summary')

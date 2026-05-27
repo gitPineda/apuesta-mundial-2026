@@ -1,7 +1,8 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { BusinessError } from '../../common/errors/business-error';
 import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
+import { SmtpMailService } from '../auth/smtp-mail.service';
 import { BankAccountDto } from './dto/bank-account.dto';
 import { FeeSettingsDto } from './dto/fee-settings.dto';
 import { MatchResultDto } from './dto/match-result.dto';
@@ -9,9 +10,12 @@ import { UpdateOddDto } from './dto/update-odd.dto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly mail: SmtpMailService,
   ) {}
 
   async dashboard() {
@@ -97,7 +101,7 @@ export class AdminService {
   }
 
   async approveTransfer(adminId: string, receiptId: string) {
-    return this.db.transaction(async (client) => {
+    const result = await this.db.transaction(async (client) => {
       const receiptResult = await client.query(
         `
         select btr.*, p.bet_id, p.id as payment_id
@@ -138,12 +142,17 @@ export class AdminService {
         beforeData: receipt,
       });
 
-      return { approved: true };
+      return { approved: true, betId: receipt.bet_id, receiptId };
     });
+
+    await this.sendTransferDecisionEmail(result.betId, result.receiptId, 'approved').catch((error) => {
+      this.logger.error('No se pudo enviar correo de aprobacion de transferencia.', error);
+    });
+    return { approved: true };
   }
 
   async rejectTransfer(adminId: string, receiptId: string, reason: string) {
-    return this.db.transaction(async (client) => {
+    const result = await this.db.transaction(async (client) => {
       const receiptResult = await client.query(
         `
         select btr.*, p.bet_id, p.id as payment_id
@@ -157,6 +166,9 @@ export class AdminService {
       const receipt = receiptResult.rows[0];
       if (!receipt) {
         throw new BusinessError('TRANSFER_NOT_FOUND', 'Transferencia no encontrada.', HttpStatus.NOT_FOUND);
+      }
+      if (receipt.admin_status !== 'pending_review') {
+        throw new BusinessError('TRANSFER_ALREADY_REVIEWED', 'La transferencia ya fue revisada.');
       }
 
       await client.query(
@@ -183,8 +195,13 @@ export class AdminService {
         afterData: { reason },
       });
 
-      return { rejected: true };
+      return { rejected: true, betId: receipt.bet_id, receiptId };
     });
+
+    await this.sendTransferDecisionEmail(result.betId, result.receiptId, 'rejected', reason).catch((error) => {
+      this.logger.error('No se pudo enviar correo de rechazo de transferencia.', error);
+    });
+    return { rejected: true };
   }
 
   async registerResult(adminId: string, matchId: string, dto: MatchResultDto) {
@@ -566,5 +583,174 @@ export class AdminService {
       afterData: result.rows[0],
     });
     return result.rows[0];
+  }
+
+  private async sendTransferDecisionEmail(
+    betId: string,
+    receiptId: string,
+    decision: 'approved' | 'rejected',
+    reason?: string,
+  ) {
+    const details = await this.getTransferEmailDetails(betId);
+    if (!details) {
+      return;
+    }
+
+    const notificationType =
+      decision === 'approved' ? 'bank_transfer_approved' : 'bank_transfer_rejected';
+    const subject =
+      decision === 'approved'
+        ? 'Transferencia aprobada'
+        : 'Transferencia rechazada';
+    const game = `${details.home_team_name ?? 'Equipo local'} vs ${details.away_team_name ?? 'Equipo visitante'}`;
+    const officialScore =
+      details.home_score === null || details.away_score === null
+        ? 'Pendiente'
+        : `${details.home_score} - ${details.away_score}`;
+    const text = [
+      `Hola ${details.full_name || details.username || details.email},`,
+      '',
+      decision === 'approved'
+        ? 'Tu transferencia fue aprobada y tu apuesta quedo activa.'
+        : 'Tu transferencia fue rechazada.',
+      '',
+      `Juego: ${game}`,
+      `Pronostico elegido: ${details.selection_label ?? details.selection_key}`,
+      `Mercado: ${details.market_name}`,
+      `Monto apostado: $${Number(details.total_stake).toFixed(2)} ${details.currency}`,
+      `Marcador oficial: ${officialScore}`,
+      reason ? `Motivo: ${reason}` : null,
+      '',
+      'Gracias por usar Apuesta Mundial 2026.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    if (!this.isValidEmail(details.email)) {
+      await this.recordEmailFailure({
+        recipientEmail: details.email,
+        notificationType,
+        relatedEntityType: 'bank_transfer_receipts',
+        relatedEntityId: receiptId,
+        subject,
+        errorMessage: 'INVALID_EMAIL_FORMAT',
+        payload: { betId, decision, reason, game },
+      });
+      return;
+    }
+
+    let result: { sent: boolean; reason?: string };
+    try {
+      result = await this.mail.send({
+        to: details.email,
+        subject,
+        text,
+      });
+    } catch (error) {
+      result = {
+        sent: false,
+        reason: error instanceof Error ? error.message : 'EMAIL_SEND_FAILED',
+      };
+    }
+
+    if (!result.sent) {
+      await this.recordEmailFailure({
+        recipientEmail: details.email,
+        notificationType,
+        relatedEntityType: 'bank_transfer_receipts',
+        relatedEntityId: receiptId,
+        subject,
+        errorMessage: result.reason ?? 'EMAIL_SEND_FAILED',
+        payload: { betId, decision, reason, game },
+      });
+    }
+  }
+
+  private async getTransferEmailDetails(betId: string) {
+    const result = await this.db.query<{
+      email: string;
+      username: string;
+      full_name: string | null;
+      total_stake: string;
+      currency: string;
+      selection_key: string;
+      selection_label: string | null;
+      market_name: string;
+      home_team_name: string | null;
+      away_team_name: string | null;
+      home_score: number | null;
+      away_score: number | null;
+    }>(
+      `
+      select
+        p.email,
+        p.username,
+        p.full_name,
+        b.total_stake,
+        b.currency,
+        bs.selection_key,
+        o.selection_label,
+        bm.name as market_name,
+        ht.name as home_team_name,
+        at.name as away_team_name,
+        mr.home_score,
+        mr.away_score
+      from bets b
+      join profiles p on p.id = b.user_id
+      join bet_selections bs on bs.bet_id = b.id
+      join betting_markets bm on bm.id = bs.market_id
+      left join odds o on o.id = bs.odds_id
+      join matches m on m.id = bs.match_id
+      left join teams ht on ht.id = m.home_team_id
+      left join teams at on at.id = m.away_team_id
+      left join match_results mr on mr.match_id = m.id
+      where b.id = $1
+      limit 1
+      `,
+      [betId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  private async recordEmailFailure(input: {
+    recipientEmail: string;
+    notificationType: string;
+    relatedEntityType: string;
+    relatedEntityId: string;
+    subject: string;
+    errorMessage: string;
+    payload: Record<string, unknown>;
+  }) {
+    try {
+      await this.db.query(
+        `
+        insert into email_delivery_failures(
+          recipient_email,
+          notification_type,
+          related_entity_type,
+          related_entity_id,
+          subject,
+          error_message,
+          payload
+        )
+        values ($1,$2,$3,$4,$5,$6,$7)
+        `,
+        [
+          input.recipientEmail,
+          input.notificationType,
+          input.relatedEntityType,
+          input.relatedEntityId,
+          input.subject,
+          input.errorMessage,
+          JSON.stringify(input.payload),
+        ],
+      );
+    } catch (error) {
+      this.logger.error('No se pudo registrar correo no enviado.', error);
+    }
+  }
+
+  private isValidEmail(email: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 }

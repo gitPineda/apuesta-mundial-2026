@@ -8,6 +8,6 @@ import { SmtpMailService } from './smtp-mail.service';
   imports: [JwtModule.register({})],
   controllers: [AuthController],
   providers: [AuthService, SmtpMailService],
-  exports: [AuthService],
+  exports: [AuthService, SmtpMailService],
 })
 export class AuthModule {}

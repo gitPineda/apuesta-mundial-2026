@@ -101,7 +101,7 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
         <TextField label="Numero de transferencia" value={transferNumber} onChangeText={setTransferNumber} />
         <TextField label="Banco origen" value={senderBank} onChangeText={setSenderBank} />
         <TextField label="Nombre del depositante" value={senderName} onChangeText={setSenderName} />
-        <TextField label="Documento del depositante" value={senderDocument} onChangeText={setSenderDocument} />
+        <TextField label="Identificación del depositante" value={senderDocument} onChangeText={setSenderDocument} />
         <TextField label="Fecha de transferencia" value={transferDate} onChangeText={setTransferDate} />
         <Button
           title="Enviar a revision"

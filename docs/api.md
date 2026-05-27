@@ -65,4 +65,5 @@ POST   /admin/transfers/:id/approve
 POST   /admin/transfers/:id/reject
 POST   /admin/matches/:id/result
 GET    /reports/summary
+GET    /reports/bets?fromDate=2026-06-11&toDate=2026-06-12&page=1&pageSize=20
 ```
