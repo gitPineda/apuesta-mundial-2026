@@ -1,4 +1,5 @@
 import { getAccessToken } from './tokenStorage';
+import { APP_PLATFORM, APP_VERSION_ID } from '../config/appVersion';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api';
 const REQUEST_TIMEOUT_MS = 30000;
@@ -15,6 +16,8 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
   headers.set('X-Request-Id', requestId);
+  headers.set('X-App-Platform', APP_PLATFORM);
+  headers.set('X-App-Version-Id', APP_VERSION_ID);
 
   if (options.auth !== false) {
     const token = await getAccessToken();
@@ -39,7 +42,9 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
 
     if (!response.ok) {
       const message = payload?.message ?? 'No se pudo completar la solicitud.';
-      throw new Error(message);
+      const error = new Error(message);
+      error.name = response.status === 426 ? 'AppVersionObsoleteError' : 'ApiError';
+      throw error;
     }
 
     return payload as T;

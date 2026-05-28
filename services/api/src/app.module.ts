@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AdminModule } from './modules/admin/admin.module';
+import { AppVersionMiddleware } from './modules/app-version/app-version.middleware';
+import { AppVersionModule } from './modules/app-version/app-version.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BettingModule } from './modules/betting/betting.module';
@@ -15,6 +17,7 @@ import { DatabaseModule } from './database/database.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
+    AppVersionModule,
     AuthModule,
     UsersModule,
     MatchesModule,
@@ -26,4 +29,16 @@ import { DatabaseModule } from './database/database.module';
     HealthModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(AppVersionMiddleware)
+      .exclude(
+        'health',
+        'app-version/check',
+        'docs',
+        'docs/(.*)',
+      )
+      .forRoutes('*');
+  }
+}

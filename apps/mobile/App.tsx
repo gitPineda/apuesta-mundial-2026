@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
+import { AppVersionGate } from './src/components/AppVersionGate';
 import { LoadingScreen } from './src/screens/main/LoadingScreen';
 import { ProfileScreen } from './src/screens/profile/ProfileScreen';
 
@@ -25,9 +26,11 @@ function Root() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <Root />
-      </AuthProvider>
+      <AppVersionGate>
+        <AuthProvider>
+          <Root />
+        </AuthProvider>
+      </AppVersionGate>
     </SafeAreaProvider>
   );
 }

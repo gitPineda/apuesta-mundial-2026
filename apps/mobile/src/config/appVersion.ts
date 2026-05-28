@@ -1,0 +1,4 @@
+export const APP_PLATFORM = 'android';
+export const APP_VERSION_ID = 'android-0.1.1-2';
+export const APP_VERSION_NAME = '0.1.1';
+export const APP_VERSION_CODE = 2;
