@@ -52,15 +52,16 @@ export class SmtpMailService {
     this.applySocketTimeout(socket, timeoutMs, requestId);
 
     const reader = this.createReader(socket);
-    await reader.read(timeoutMs, 'greeting');
-    await this.command(socket, reader, `EHLO ${heloHost}`, timeoutMs, 'ehlo');
+    const greeting = await reader.read(timeoutMs, 'greeting');
+    this.logger.log(`[${requestId}] smtp.greeting response=${this.sanitizeResponse(greeting)}`);
+    await this.sayHello(socket, reader, heloHost, timeoutMs, requestId, 'plain');
 
     if (!secure) {
       await this.command(socket, reader, 'STARTTLS', timeoutMs, 'starttls');
       socket = tls.connect({ socket, servername: host });
       this.applySocketTimeout(socket, timeoutMs, requestId);
       const tlsReader = this.createReader(socket);
-      await this.command(socket, tlsReader, `EHLO ${heloHost}`, timeoutMs, 'ehlo_tls');
+      await this.sayHello(socket, tlsReader, heloHost, timeoutMs, requestId, 'tls');
       await this.authenticate(socket, tlsReader, user, pass, timeoutMs);
       await this.sendEnvelope(socket, tlsReader, from, options, timeoutMs);
       this.logger.log(
@@ -124,6 +125,29 @@ export class SmtpMailService {
     await reader.read(timeoutMs, 'message_body');
     await this.command(socket, reader, 'QUIT', timeoutMs, 'quit');
     socket.end();
+  }
+
+  private async sayHello(
+    socket: net.Socket | tls.TLSSocket,
+    reader: ReturnType<SmtpMailService['createReader']>,
+    heloHost: string,
+    timeoutMs: number,
+    requestId: string,
+    phase: 'plain' | 'tls',
+  ) {
+    const ehloStage = phase === 'plain' ? 'ehlo' : 'ehlo_tls';
+    const heloStage = phase === 'plain' ? 'helo' : 'helo_tls';
+    try {
+      const response = await this.command(socket, reader, `EHLO ${heloHost}`, timeoutMs, ehloStage);
+      this.logger.log(`[${requestId}] smtp.${ehloStage}.ok response=${this.sanitizeResponse(response)}`);
+      return response;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`[${requestId}] smtp.${ehloStage}.failed reason=${reason}; trying HELO`);
+      const response = await this.command(socket, reader, `HELO ${heloHost}`, timeoutMs, heloStage);
+      this.logger.log(`[${requestId}] smtp.${heloStage}.ok response=${this.sanitizeResponse(response)}`);
+      return response;
+    }
   }
 
   private async command(
@@ -192,7 +216,7 @@ export class SmtpMailService {
     const lines = buffer.split(/\r?\n/).filter(Boolean);
     if (!lines.length) return null;
     const lastLine = lines[lines.length - 1];
-    if (/^\d{3} /.test(lastLine)) {
+    if (/^\d{3}(?:\s|$)/.test(lastLine)) {
       return `${lines.join('\r\n')}\r\n`;
     }
     return null;
@@ -235,5 +259,9 @@ export class SmtpMailService {
     const [name, domain] = email.split('@');
     if (!name || !domain) return 'invalid-email';
     return `${name.slice(0, 2)}***@${domain}`;
+  }
+
+  private sanitizeResponse(response: string) {
+    return response.replace(/\s+/g, ' ').slice(0, 240);
   }
 }
