@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { google, gmail_v1 } from 'googleapis';
 import { resolve4 } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { createTransport, Transporter } from 'nodemailer';
@@ -15,15 +16,12 @@ interface SendMailOptions {
 export class SmtpMailService {
   private readonly logger = new Logger(SmtpMailService.name);
   private transporter: Transporter | null = null;
+  private gmailClient: gmail_v1.Gmail | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
   isConfigured() {
-    return Boolean(
-      this.config.get<string>('SMTP_HOST') &&
-        this.config.get<string>('SMTP_USER') &&
-        this.config.get<string>('SMTP_PASS'),
-    );
+    return this.isGmailApiConfigured() || this.isSmtpConfigured();
   }
 
   async send(options: SendMailOptions) {
@@ -35,6 +33,14 @@ export class SmtpMailService {
     }
 
     try {
+      if (this.isGmailApiConfigured()) {
+        await this.sendWithGmailApi(options, requestId);
+        this.logger.log(
+          `[${requestId}] mail.send.success to=${this.maskEmail(options.to)} provider=gmailApi elapsedMs=${Date.now() - startedAt}`,
+        );
+        return { sent: true };
+      }
+
       const transporter = await this.getTransporter(requestId);
       const fromName = this.config.get<string>('SMTP_FROM_NAME', 'Soporte');
       const user = this.config.getOrThrow<string>('SMTP_USER').trim().toLowerCase();
@@ -133,6 +139,71 @@ export class SmtpMailService {
     return this.transporter;
   }
 
+  private async sendWithGmailApi(options: SendMailOptions, requestId: string) {
+    const gmail = this.getGmailClient(requestId);
+    const senderEmail = this.config.getOrThrow<string>('GMAIL_SENDER_EMAIL').trim().toLowerCase();
+    const fromName = this.config.get<string>('SMTP_FROM_NAME', 'Soporte');
+    const from = `${this.sanitizeHeaderValue(fromName)} <${senderEmail}>`;
+    const to = options.to.trim().toLowerCase();
+    const raw = this.toBase64Url(
+      [
+        `From: ${from}`,
+        `To: ${this.sanitizeHeaderValue(to)}`,
+        `Subject: ${this.sanitizeHeaderValue(options.subject)}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=UTF-8',
+        'Content-Transfer-Encoding: 8bit',
+        '',
+        options.text,
+      ].join('\r\n'),
+    );
+
+    this.logger.log(`[${requestId}] mail.send.start to=${this.maskEmail(to)} provider=gmailApi`);
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: { raw },
+    });
+    this.logger.log(
+      `[${requestId}] mail.gmailApi.response messageId=${result.data.id ?? 'none'} threadId=${result.data.threadId ?? 'none'}`,
+    );
+  }
+
+  private getGmailClient(requestId: string) {
+    if (this.gmailClient) {
+      return this.gmailClient;
+    }
+
+    const clientId = this.config.getOrThrow<string>('GMAIL_CLIENT_ID').trim();
+    const clientSecret = this.config.getOrThrow<string>('GMAIL_CLIENT_SECRET').trim();
+    const refreshToken = this.config.getOrThrow<string>('GMAIL_REFRESH_TOKEN').trim();
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    this.gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
+    this.logger.log(
+      `[${requestId}] mail.gmailApi.client.create sender=${this.maskEmail(
+        this.config.getOrThrow<string>('GMAIL_SENDER_EMAIL'),
+      )}`,
+    );
+    return this.gmailClient;
+  }
+
+  private isGmailApiConfigured() {
+    return Boolean(
+      this.config.get<string>('GMAIL_CLIENT_ID') &&
+        this.config.get<string>('GMAIL_CLIENT_SECRET') &&
+        this.config.get<string>('GMAIL_REFRESH_TOKEN') &&
+        this.config.get<string>('GMAIL_SENDER_EMAIL'),
+    );
+  }
+
+  private isSmtpConfigured() {
+    return Boolean(
+      this.config.get<string>('SMTP_HOST') &&
+        this.config.get<string>('SMTP_USER') &&
+        this.config.get<string>('SMTP_PASS'),
+    );
+  }
+
   private createRequestId() {
     return `mail-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
@@ -141,5 +212,17 @@ export class SmtpMailService {
     const [name, domain] = email.split('@');
     if (!name || !domain) return 'invalid-email';
     return `${name.slice(0, 2)}***@${domain}`;
+  }
+
+  private sanitizeHeaderValue(value: string) {
+    return value.replace(/[\r\n]+/g, ' ').trim();
+  }
+
+  private toBase64Url(value: string) {
+    return Buffer.from(value, 'utf8')
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
   }
 }
