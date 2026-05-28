@@ -4,6 +4,7 @@ import { CalendarDays, History, Home, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AdminHomeScreen } from '../screens/admin/AdminHomeScreen';
 import { AdminBankAccountsScreen } from '../screens/admin/AdminBankAccountsScreen';
+import { AdminCreateMatchScreen } from '../screens/admin/AdminCreateMatchScreen';
 import { AdminOddsScreen } from '../screens/admin/AdminOddsScreen';
 import { AdminReportsScreen } from '../screens/admin/AdminReportsScreen';
 import { AdminResultsScreen } from '../screens/admin/AdminResultsScreen';
@@ -97,6 +98,7 @@ export function AppNavigator() {
       <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: 'Pago' }} />
       <Stack.Screen name="BankTransfer" component={BankTransferScreen} options={{ title: 'Transferencia' }} />
       <Stack.Screen name="AdminHome" component={AdminHomeScreen} options={{ title: 'Admin' }} />
+      <Stack.Screen name="AdminCreateMatch" component={AdminCreateMatchScreen} options={{ title: 'Nuevo partido' }} />
       <Stack.Screen name="AdminTransfers" component={AdminTransfersScreen} options={{ title: 'Transferencias' }} />
       <Stack.Screen name="AdminOdds" component={AdminOddsScreen} options={{ title: 'Cuotas' }} />
       <Stack.Screen name="AdminResults" component={AdminResultsScreen} options={{ title: 'Resultados' }} />

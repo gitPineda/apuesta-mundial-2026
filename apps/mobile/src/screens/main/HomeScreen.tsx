@@ -47,6 +47,12 @@ export function HomeScreen() {
               onPress={() => navigation.navigate('AdminOdds')}
             />
             <HomeActionCard
+              icon={<CalendarDays color={colors.primary} size={24} />}
+              title="Nuevo partido"
+              text="Crear juegos especiales y resultado simple."
+              onPress={() => navigation.navigate('AdminCreateMatch')}
+            />
+            <HomeActionCard
               icon={<Trophy color={colors.success} size={24} />}
               title="Resultados"
               text="Registrar marcadores y liquidar apuestas."

@@ -4,6 +4,7 @@ import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
 import { SmtpMailService } from '../auth/smtp-mail.service';
 import { BankAccountDto } from './dto/bank-account.dto';
+import { CreateMatchDto } from './dto/create-match.dto';
 import { FeeSettingsDto } from './dto/fee-settings.dto';
 import { MatchResultDto } from './dto/match-result.dto';
 import { UpdateOddDto } from './dto/update-odd.dto';
@@ -98,6 +99,201 @@ export class AdminService {
       `,
     );
     return result.rows;
+  }
+
+  async createMatch(adminId: string, dto: CreateMatchDto) {
+    const homeCode = dto.homeTeamCode.trim().toUpperCase();
+    const awayCode = dto.awayTeamCode.trim().toUpperCase();
+    if (homeCode === awayCode) {
+      throw new BusinessError('MATCH_TEAMS_DUPLICATED', 'Los equipos deben ser diferentes.');
+    }
+
+    const kickoffAt = this.ecuadorDateTimeToUtc(dto.kickoffDateEc, dto.kickoffTimeEc);
+    const cutoffMinutes = dto.bettingCutoffMinutes ?? 60;
+    const bettingClosesAt = new Date(kickoffAt.getTime() - cutoffMinutes * 60_000);
+    const tournamentName = dto.tournamentName?.trim() || 'Partidos especiales';
+    const venueName = dto.venueName.trim();
+    const venueCity = dto.venueCity.trim();
+    const venueCountry = dto.venueCountry.trim();
+    const venueTimezone = dto.venueTimezone?.trim() || 'America/New_York';
+    const phase = dto.phase?.trim() || 'special';
+    const externalId = this.createMatchExternalId(homeCode, awayCode, dto.kickoffDateEc);
+
+    return this.db.transaction(async (client) => {
+      const tournament = await client.query(
+        `
+        insert into tournaments(name, starts_at, ends_at, country, is_active)
+        select $1, $2::date, $2::date, $3, false
+        where not exists (select 1 from tournaments where name = $1)
+        returning id
+        `,
+        [tournamentName, dto.kickoffDateEc, venueCountry],
+      );
+      const tournamentId =
+        tournament.rows[0]?.id ??
+        (
+          await client.query(`select id from tournaments where name = $1 order by created_at desc limit 1`, [
+            tournamentName,
+          ])
+        ).rows[0]?.id;
+
+      const homeTeam = await client.query(
+        `
+        insert into teams(fifa_code, name, country)
+        values ($1, $2, $2)
+        on conflict (fifa_code) do update
+        set name = excluded.name,
+            country = excluded.country,
+            updated_at = now()
+        returning id
+        `,
+        [homeCode, dto.homeTeamName.trim()],
+      );
+      const awayTeam = await client.query(
+        `
+        insert into teams(fifa_code, name, country)
+        values ($1, $2, $2)
+        on conflict (fifa_code) do update
+        set name = excluded.name,
+            country = excluded.country,
+            updated_at = now()
+        returning id
+        `,
+        [awayCode, dto.awayTeamName.trim()],
+      );
+      const venue = await client.query(
+        `
+        insert into venues(name, city, country, timezone)
+        select $1, $2, $3, $4
+        where not exists (select 1 from venues where lower(name) = lower($1) and lower(city) = lower($2))
+        returning id
+        `,
+        [venueName, venueCity, venueCountry, venueTimezone],
+      );
+      const venueId =
+        venue.rows[0]?.id ??
+        (
+          await client.query(
+            `select id from venues where lower(name) = lower($1) and lower(city) = lower($2) order by created_at desc limit 1`,
+            [venueName, venueCity],
+          )
+        ).rows[0]?.id;
+
+      const match = await client.query(
+        `
+        insert into matches(
+          tournament_id,
+          home_team_id,
+          away_team_id,
+          venue_id,
+          kickoff_at,
+          phase,
+          group_name,
+          status,
+          betting_enabled,
+          betting_cutoff_minutes,
+          betting_closes_at,
+          external_id,
+          kickoff_local_date_ec,
+          kickoff_local_time_ec,
+          betting_closes_local_date_ec,
+          betting_closes_local_time_ec
+        )
+        values (
+          $1, $2, $3, $4, $5, $6, $7, 'scheduled'::match_status, $8, $9, $10, $11,
+          $12::date, $13::time, $14::date, $15::time
+        )
+        on conflict (external_id) do update
+        set tournament_id = excluded.tournament_id,
+            home_team_id = excluded.home_team_id,
+            away_team_id = excluded.away_team_id,
+            venue_id = excluded.venue_id,
+            kickoff_at = excluded.kickoff_at,
+            phase = excluded.phase,
+            group_name = excluded.group_name,
+            status = 'scheduled'::match_status,
+            betting_enabled = excluded.betting_enabled,
+            betting_cutoff_minutes = excluded.betting_cutoff_minutes,
+            betting_closes_at = excluded.betting_closes_at,
+            kickoff_local_date_ec = excluded.kickoff_local_date_ec,
+            kickoff_local_time_ec = excluded.kickoff_local_time_ec,
+            betting_closes_local_date_ec = excluded.betting_closes_local_date_ec,
+            betting_closes_local_time_ec = excluded.betting_closes_local_time_ec,
+            updated_at = now()
+        returning *
+        `,
+        [
+          tournamentId,
+          homeTeam.rows[0].id,
+          awayTeam.rows[0].id,
+          venueId,
+          kickoffAt,
+          phase,
+          dto.groupName?.trim() || null,
+          dto.bettingEnabled ?? true,
+          cutoffMinutes,
+          bettingClosesAt,
+          externalId,
+          dto.kickoffDateEc,
+          dto.kickoffTimeEc,
+          this.toEcuadorDate(bettingClosesAt),
+          this.toEcuadorTime(bettingClosesAt),
+        ],
+      );
+
+      const market = await client.query(
+        `
+        insert into betting_markets(match_id, type, name, status)
+        values ($1, 'match_winner'::market_type, 'Resultado simple', 'open'::market_status)
+        on conflict (match_id, type, name, coalesce(line_value, -1)) do update
+        set status = 'open',
+            updated_at = now()
+        returning id
+        `,
+        [match.rows[0].id],
+      );
+
+      await client.query(
+        `
+        insert into odds(market_id, selection_key, selection_label, decimal_odds, status)
+        values
+          ($1, 'home_win', $2, $3, 'active'::odds_status),
+          ($1, 'draw', 'Empate', $4, 'active'::odds_status),
+          ($1, 'away_win', $5, $6, 'active'::odds_status)
+        on conflict (market_id, selection_key) do update
+        set selection_label = excluded.selection_label,
+            decimal_odds = excluded.decimal_odds,
+            status = excluded.status,
+            updated_at = now()
+        `,
+        [
+          market.rows[0].id,
+          `${dto.homeTeamName.trim()} gana`,
+          dto.homeWinOdds,
+          dto.drawOdds,
+          `${dto.awayTeamName.trim()} gana`,
+          dto.awayWinOdds,
+        ],
+      );
+
+      await this.audit.log({
+        actorUserId: adminId,
+        actorRole: 'admin',
+        action: 'match.created',
+        entityType: 'matches',
+        entityId: match.rows[0].id,
+        afterData: {
+          ...match.rows[0],
+          odds: {
+            homeWin: dto.homeWinOdds,
+            draw: dto.drawOdds,
+            awayWin: dto.awayWinOdds,
+          },
+        },
+      });
+
+      return match.rows[0];
+    });
   }
 
   async approveTransfer(adminId: string, receiptId: string) {
@@ -752,5 +948,31 @@ export class AdminService {
 
   private isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  private ecuadorDateTimeToUtc(date: string, time: string) {
+    return new Date(`${date}T${time}:00-05:00`);
+  }
+
+  private toEcuadorDate(value: Date) {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(value);
+  }
+
+  private toEcuadorTime(value: Date) {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'America/Guayaquil',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(value);
+  }
+
+  private createMatchExternalId(homeCode: string, awayCode: string, date: string) {
+    return `admin-${date.replace(/-/g, '')}-${homeCode.toLowerCase()}-${awayCode.toLowerCase()}`;
   }
 }

@@ -11,6 +11,7 @@ import { typography } from '../../theme/typography';
 import { AppStackParamList } from '../../navigation/types';
 
 const sections: Array<{ title: string; description: string; route: keyof AppStackParamList }> = [
+  { title: 'Nuevo partido', description: 'Crear juegos especiales con sede y multiplicadores.', route: 'AdminCreateMatch' },
   { title: 'Transferencias', description: 'Aprobar o rechazar comprobantes pendientes.', route: 'AdminTransfers' },
   { title: 'Cuotas', description: 'Consultar mercados y editar multiplicadores.', route: 'AdminOdds' },
   { title: 'Resultados', description: 'Registrar marcador oficial por partido.', route: 'AdminResults' },

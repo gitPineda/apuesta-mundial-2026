@@ -23,6 +23,7 @@ export type AppStackParamList = {
   Payment: { betId: string; amount: number };
   BankTransfer: { betId: string };
   AdminHome: undefined;
+  AdminCreateMatch: undefined;
   AdminTransfers: undefined;
   AdminOdds: undefined;
   AdminResults: undefined;

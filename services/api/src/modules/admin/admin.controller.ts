@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminService } from './admin.service';
 import { BankAccountDto } from './dto/bank-account.dto';
+import { CreateMatchDto } from './dto/create-match.dto';
 import { FeeSettingsDto } from './dto/fee-settings.dto';
 import { MatchResultDto } from './dto/match-result.dto';
 import { RejectTransferDto } from './dto/reject-transfer.dto';
@@ -45,6 +46,12 @@ export class AdminController {
   @Get('transfers/pending')
   pendingTransfers() {
     return this.admin.pendingTransfers();
+  }
+
+  @Post('matches')
+  @Roles(Role.Admin)
+  createMatch(@CurrentUser() user: CurrentUser, @Body() dto: CreateMatchDto) {
+    return this.admin.createMatch(user.id, dto);
   }
 
   @Post('transfers/:id/approve')
