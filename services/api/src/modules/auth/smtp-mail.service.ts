@@ -54,6 +54,7 @@ export class SmtpMailService {
     const reader = this.createReader(socket);
     const greeting = await reader.read(timeoutMs, 'greeting');
     this.logger.log(`[${requestId}] smtp.greeting response=${this.sanitizeResponse(greeting)}`);
+    this.assertGreeting(greeting);
     await this.sayHello(socket, reader, heloHost, timeoutMs, requestId, 'plain');
 
     if (!secure) {
@@ -263,5 +264,11 @@ export class SmtpMailService {
 
   private sanitizeResponse(response: string) {
     return response.replace(/\s+/g, ' ').slice(0, 240);
+  }
+
+  private assertGreeting(response: string) {
+    if (!response.startsWith('220')) {
+      throw new Error(`SMTP invalid greeting: ${this.sanitizeResponse(response)}`);
+    }
   }
 }
