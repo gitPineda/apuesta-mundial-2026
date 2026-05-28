@@ -20,7 +20,8 @@ function buildDateRange(start: string, end: string) {
   return dates;
 }
 
-const dates = buildDateRange('2026-06-11', '2026-06-27');
+const specialDates = ['2026-05-30'];
+const worldCupDates = buildDateRange('2026-06-11', '2026-06-27');
 
 export function CalendarScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -29,9 +30,19 @@ export function CalendarScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>Calendario</Text>
-        <Text style={styles.subtitle}>Primera fase: 11 al 27 de junio. Horarios en Ecuador.</Text>
+        <Text style={styles.subtitle}>Partidos disponibles para apostar. Horarios en Ecuador.</Text>
       </View>
 
+      <DateSection title="Partidos especiales" dates={specialDates} onSelect={(date) => navigation.navigate('MatchesByDate', { date })} />
+      <DateSection title="Mundial FIFA 2026" dates={worldCupDates} onSelect={(date) => navigation.navigate('MatchesByDate', { date })} />
+    </Screen>
+  );
+}
+
+function DateSection({ title, dates, onSelect }: { title: string; dates: string[]; onSelect: (date: string) => void }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
       <View style={styles.list}>
         {dates.map((date) => {
           const itemDate = new Date(`${date}T12:00:00Z`);
@@ -39,7 +50,7 @@ export function CalendarScreen() {
             <Pressable
               key={date}
               style={styles.dateRow}
-              onPress={() => navigation.navigate('MatchesByDate', { date })}
+              onPress={() => onSelect(date)}
             >
               <View>
                 <Text style={styles.dateTitle}>
@@ -52,7 +63,7 @@ export function CalendarScreen() {
           );
         })}
       </View>
-    </Screen>
+    </View>
   );
 }
 
@@ -67,6 +78,14 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.textMuted,
     lineHeight: 20,
+  },
+  section: {
+    gap: spacing.md,
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
   },
   list: {
     gap: spacing.md,
