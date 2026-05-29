@@ -47,11 +47,17 @@ export class AdminService {
       }
       const result = await client.query(
         `
-        insert into fee_settings(name, platform_fee_percent, operator_fee_percent, is_active)
-        values ($1,$2,$3,$4)
+        insert into fee_settings(name, platform_fee_percent, operator_fee_percent, max_bet_amount, is_active)
+        values ($1,$2,$3,$4,$5)
         returning *
         `,
-        [dto.name, dto.platformFeePercent, dto.operatorFeePercent, dto.isActive ?? false],
+        [
+          dto.name,
+          dto.platformFeePercent,
+          dto.operatorFeePercent,
+          dto.maxBetAmount,
+          dto.isActive ?? false,
+        ],
       );
       await this.audit.log({
         actorUserId: adminId,

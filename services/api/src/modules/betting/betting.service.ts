@@ -24,6 +24,7 @@ interface SelectionRow {
 interface FeeSettingsRow {
   platform_fee_percent: string;
   operator_fee_percent: string;
+  max_bet_amount: string;
 }
 
 @Injectable()
@@ -40,6 +41,7 @@ export class BettingService {
       selections.map((selection) => selection.match_id),
     );
     const fees = await this.getActiveFees();
+    this.validateStakeAmount(dto.stake, fees);
     return this.calculateQuote(dto.stake, selections, fees);
   }
 
@@ -66,8 +68,9 @@ export class BettingService {
         selections.map((selection) => selection.match_id),
         client,
       );
-      await this.validateLimits(userId, dto.stake, client);
       const fees = await this.getActiveFees(client);
+      this.validateStakeAmount(dto.stake, fees);
+      await this.validateLimits(userId, dto.stake, client);
       const quote = this.calculateQuote(dto.stake, selections, fees);
 
       const betResult = await client.query(
@@ -326,7 +329,7 @@ export class BettingService {
     const query = client ? client.query.bind(client) : this.db.query.bind(this.db);
     const result = await query<FeeSettingsRow>(
       `
-      select platform_fee_percent, operator_fee_percent
+      select platform_fee_percent, operator_fee_percent, max_bet_amount
       from fee_settings
       where is_active = true
       limit 1
@@ -336,6 +339,19 @@ export class BettingService {
       throw new BusinessError('FEE_SETTINGS_REQUIRED', 'No hay configuracion activa de comisiones.');
     }
     return result.rows[0];
+  }
+
+  private validateStakeAmount(stake: number, fees: FeeSettingsRow) {
+    const maxBetAmount = Number(fees.max_bet_amount);
+    if (stake < 1) {
+      throw new BusinessError('BET_STAKE_TOO_LOW', 'El monto minimo de apuesta es $1.00.');
+    }
+    if (stake > maxBetAmount) {
+      throw new BusinessError(
+        'BET_STAKE_TOO_HIGH',
+        `El monto maximo de apuesta es $${maxBetAmount.toFixed(2)}.`,
+      );
+    }
   }
 
   private calculateQuote(stake: number, selections: SelectionRow[], fees: FeeSettingsRow) {

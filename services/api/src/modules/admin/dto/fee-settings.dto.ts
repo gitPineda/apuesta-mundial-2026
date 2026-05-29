@@ -13,6 +13,10 @@ export class FeeSettingsDto {
   @Min(0)
   operatorFeePercent: number;
 
+  @IsNumber()
+  @Min(1)
+  maxBetAmount: number;
+
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;

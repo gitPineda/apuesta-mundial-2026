@@ -16,6 +16,7 @@ export function AdminSettingsScreen() {
   const [name, setName] = useState('Comisiones operativas');
   const [platformFeePercent, setPlatformFeePercent] = useState('4');
   const [operatorFeePercent, setOperatorFeePercent] = useState('6');
+  const [maxBetAmount, setMaxBetAmount] = useState('100');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
@@ -39,8 +40,9 @@ export function AdminSettingsScreen() {
   async function create() {
     const platformFee = Number(platformFeePercent.replace(',', '.'));
     const operatorFee = Number(operatorFeePercent.replace(',', '.'));
-    if (!name.trim() || !Number.isFinite(platformFee) || !Number.isFinite(operatorFee)) {
-      setPopup({ title: 'Datos invalidos', message: 'Ingresa nombre y porcentajes validos.' });
+    const maxBet = Number(maxBetAmount.replace(',', '.'));
+    if (!name.trim() || !Number.isFinite(platformFee) || !Number.isFinite(operatorFee) || !Number.isFinite(maxBet) || maxBet < 1) {
+      setPopup({ title: 'Datos invalidos', message: 'Ingresa nombre, porcentajes y monto maximo validos.' });
       return;
     }
 
@@ -50,6 +52,7 @@ export function AdminSettingsScreen() {
         name,
         platformFeePercent: platformFee,
         operatorFeePercent: operatorFee,
+        maxBetAmount: maxBet,
         isActive: true,
       });
       setPopup({ title: 'Configuracion guardada', message: 'Las comisiones quedaron activas.' });
@@ -74,6 +77,7 @@ export function AdminSettingsScreen() {
         <TextField label="Nombre" value={name} onChangeText={setName} />
         <TextField label="Comision app %" value={platformFeePercent} onChangeText={setPlatformFeePercent} keyboardType="decimal-pad" />
         <TextField label="Comision operativa %" value={operatorFeePercent} onChangeText={setOperatorFeePercent} keyboardType="decimal-pad" />
+        <TextField label="Monto maximo de apuesta" value={maxBetAmount} onChangeText={setMaxBetAmount} keyboardType="decimal-pad" />
         <Button title="Crear y activar" onPress={create} loading={saving} />
       </InfoCard>
       {items.map((item) => (
@@ -81,6 +85,7 @@ export function AdminSettingsScreen() {
           <Text style={styles.cardTitle}>{item.name}</Text>
           <Text style={styles.line}>App: {item.platform_fee_percent}%</Text>
           <Text style={styles.line}>Operativa: {item.operator_fee_percent}%</Text>
+          <Text style={styles.line}>Monto maximo: ${Number(item.max_bet_amount ?? 0).toFixed(2)}</Text>
           <Text style={item.is_active ? styles.active : styles.line}>{item.is_active ? 'Activa' : 'Inactiva'}</Text>
         </InfoCard>
       ))}

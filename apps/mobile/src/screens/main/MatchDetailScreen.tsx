@@ -17,6 +17,7 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedScores, setSelectedScores] = useState<Record<string, { home: number; away: number }>>({});
+  const [selectedMarketType, setSelectedMarketType] = useState<'match_winner' | 'exact_score'>('match_winner');
 
   useEffect(() => {
     Promise.all([
@@ -72,50 +73,95 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
 
       {!isFinal ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>Mercados</Text>
-        {markets.map((market) => (
-          <InfoCard key={market.id}>
-            <Text style={styles.marketTitle}>{market.name}</Text>
-            {market.type === 'exact_score' ? (
-              <ExactScorePicker
-                market={market}
-                match={match}
-                value={selectedScores[market.id] ?? { home: 0, away: 0 }}
-                onChange={(value) =>
-                  setSelectedScores((current) => ({ ...current, [market.id]: value }))
-                }
-                onSelect={(odd) =>
-                  navigation.navigate('CreateBet', {
-                    matchId: match.id,
-                    oddsId: odd.id,
-                    selectionLabel: odd.selectionLabel,
-                  })
-                }
-              />
-            ) : (
-              <View style={styles.oddsGrid}>
-                {market.odds.map((odd) => (
-                  <Pressable
-                    key={odd.id}
-                    style={[styles.odd, !match.accepts_bets && styles.oddDisabled]}
-                    disabled={!match.accepts_bets}
-                    onPress={() =>
-                      navigation.navigate('CreateBet', {
-                        matchId: match.id,
-                        oddsId: odd.id,
-                        selectionLabel: odd.selectionLabel,
-                      })
-                    }
-                  >
-                    <Text style={styles.oddLabel}>{odd.selectionLabel}</Text>
-                    <Text style={styles.oddValue}>{Number(odd.decimalOdds).toFixed(2)}x</Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </InfoCard>
+        <View style={styles.marketMode}>
+          <RadioOption
+            label="Resultado simple"
+            selected={selectedMarketType === 'match_winner'}
+            onPress={() => setSelectedMarketType('match_winner')}
+          />
+          <RadioOption
+            label="Resultado por marcador"
+            selected={selectedMarketType === 'exact_score'}
+            onPress={() => setSelectedMarketType('exact_score')}
+          />
+        </View>
+        {markets.filter((market) => market.type === selectedMarketType).map((market) => (
+          <MarketCard
+            key={market.id}
+            market={market}
+            match={match}
+            selectedScore={selectedScores[market.id] ?? { home: 0, away: 0 }}
+            onScoreChange={(value) =>
+              setSelectedScores((current) => ({ ...current, [market.id]: value }))
+            }
+            onSelectOdd={(odd) =>
+              navigation.navigate('CreateBet', {
+                matchId: match.id,
+                oddsId: odd.id,
+                selectionLabel: odd.selectionLabel,
+              })
+            }
+          />
         ))}
+        {markets.filter((market) => market.type === selectedMarketType).length === 0 ? (
+          <Text style={styles.emptyMarket}>No hay cuotas disponibles para esta opcion.</Text>
+        ) : null}
       </View> : null}
     </Screen>
+  );
+}
+
+function RadioOption({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={[styles.radioOption, selected && styles.radioOptionActive]} onPress={onPress}>
+      <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>
+        {selected ? <View style={styles.radioInner} /> : null}
+      </View>
+      <Text style={[styles.radioLabel, selected && styles.radioLabelActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function MarketCard({
+  market,
+  match,
+  selectedScore,
+  onScoreChange,
+  onSelectOdd,
+}: {
+  market: Market;
+  match: Match;
+  selectedScore: { home: number; away: number };
+  onScoreChange: (value: { home: number; away: number }) => void;
+  onSelectOdd: (odd: Market['odds'][number]) => void;
+}) {
+  return (
+    <InfoCard>
+      <Text style={styles.marketTitle}>{market.name}</Text>
+      {market.type === 'exact_score' ? (
+        <ExactScorePicker
+          market={market}
+          match={match}
+          value={selectedScore}
+          onChange={onScoreChange}
+          onSelect={onSelectOdd}
+        />
+      ) : (
+        <View style={styles.oddsGrid}>
+          {market.odds.map((odd) => (
+            <Pressable
+              key={odd.id}
+              style={[styles.odd, !match.accepts_bets && styles.oddDisabled]}
+              disabled={!match.accepts_bets}
+              onPress={() => onSelectOdd(odd)}
+            >
+              <Text style={styles.oddLabel}>{odd.selectionLabel}</Text>
+              <Text style={styles.oddValue}>{Number(odd.decimalOdds).toFixed(2)}x</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </InfoCard>
   );
 }
 
@@ -214,6 +260,52 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.h2,
     color: colors.text,
+  },
+  marketMode: {
+    gap: spacing.sm,
+  },
+  radioOption: {
+    minHeight: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  radioOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.chip,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterActive: {
+    borderColor: colors.primary,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+  },
+  radioLabel: {
+    color: colors.text,
+    fontWeight: '800',
+  },
+  radioLabelActive: {
+    color: colors.primary,
+  },
+  emptyMarket: {
+    color: colors.textMuted,
   },
   marketTitle: {
     color: colors.text,
