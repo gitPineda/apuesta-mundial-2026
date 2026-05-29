@@ -174,10 +174,37 @@ export class BettingService {
   async findUserBets(userId: string) {
     const result = await this.db.query(
       `
-      select b.*,
-        coalesce(json_agg(bs.*) filter (where bs.id is not null), '[]') as selections
+      select
+        b.*,
+        coalesce(
+          json_agg(
+            json_build_object(
+              'id', bs.id,
+              'matchId', bs.match_id,
+              'marketId', bs.market_id,
+              'oddsId', bs.odds_id,
+              'selectionKey', bs.selection_key,
+              'selectionLabel', coalesce(o.selection_label, bs.selection_key),
+              'marketName', bm.name,
+              'marketType', bm.type,
+              'frozenOdds', bs.frozen_odds,
+              'status', bs.status,
+              'homeTeamName', ht.name,
+              'awayTeamName', at.name,
+              'kickoffLocalDate', to_char(m.kickoff_local_date_ec, 'YYYY-MM-DD'),
+              'kickoffLocalTime', to_char(m.kickoff_local_time_ec, 'HH24:MI')
+            )
+            order by bs.created_at asc
+          ) filter (where bs.id is not null),
+          '[]'
+        ) as selections
       from bets b
       left join bet_selections bs on bs.bet_id = b.id
+      left join odds o on o.id = bs.odds_id
+      left join betting_markets bm on bm.id = bs.market_id
+      left join matches m on m.id = bs.match_id
+      left join teams ht on ht.id = m.home_team_id
+      left join teams at on at.id = m.away_team_id
       where b.user_id = $1
       group by b.id
       order by b.created_at desc
@@ -190,10 +217,37 @@ export class BettingService {
   async findUserBet(userId: string, betId: string) {
     const result = await this.db.query(
       `
-      select b.*,
-        coalesce(json_agg(bs.*) filter (where bs.id is not null), '[]') as selections
+      select
+        b.*,
+        coalesce(
+          json_agg(
+            json_build_object(
+              'id', bs.id,
+              'matchId', bs.match_id,
+              'marketId', bs.market_id,
+              'oddsId', bs.odds_id,
+              'selectionKey', bs.selection_key,
+              'selectionLabel', coalesce(o.selection_label, bs.selection_key),
+              'marketName', bm.name,
+              'marketType', bm.type,
+              'frozenOdds', bs.frozen_odds,
+              'status', bs.status,
+              'homeTeamName', ht.name,
+              'awayTeamName', at.name,
+              'kickoffLocalDate', to_char(m.kickoff_local_date_ec, 'YYYY-MM-DD'),
+              'kickoffLocalTime', to_char(m.kickoff_local_time_ec, 'HH24:MI')
+            )
+            order by bs.created_at asc
+          ) filter (where bs.id is not null),
+          '[]'
+        ) as selections
       from bets b
       left join bet_selections bs on bs.bet_id = b.id
+      left join odds o on o.id = bs.odds_id
+      left join betting_markets bm on bm.id = bs.market_id
+      left join matches m on m.id = bs.match_id
+      left join teams ht on ht.id = m.home_team_id
+      left join teams at on at.id = m.away_team_id
       where b.user_id = $1 and b.id = $2
       group by b.id
       `,

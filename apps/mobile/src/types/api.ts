@@ -62,4 +62,22 @@ export interface Bet {
   payment_status: string;
   source: string;
   created_at: string;
+  selections?: BetSelectionSummary[];
+}
+
+export interface BetSelectionSummary {
+  id: string;
+  matchId: string;
+  marketId: string;
+  oddsId: string;
+  selectionKey: string;
+  selectionLabel: string;
+  marketName: string;
+  marketType: string;
+  frozenOdds: string;
+  status: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  kickoffLocalDate?: string;
+  kickoffLocalTime?: string;
 }
