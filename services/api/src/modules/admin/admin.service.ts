@@ -282,6 +282,13 @@ export class AdminService {
         ],
       );
 
+      await this.ensureExactScoreMarket(
+        client,
+        match.rows[0].id,
+        dto.homeTeamName.trim(),
+        dto.awayTeamName.trim(),
+      );
+
       await this.audit.log({
         actorUserId: adminId,
         actorRole: 'admin',
@@ -958,6 +965,51 @@ export class AdminService {
 
   private ecuadorDateTimeToUtc(date: string, time: string) {
     return new Date(`${date}T${time}:00-05:00`);
+  }
+
+  private async ensureExactScoreMarket(
+    client: {
+      query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+    },
+    matchId: string,
+    homeTeamName: string,
+    awayTeamName: string,
+  ) {
+    const market = await client.query(
+      `
+      insert into betting_markets(match_id, type, name, status)
+      values ($1, 'exact_score'::market_type, 'Marcador exacto', 'open'::market_status)
+      on conflict (match_id, type, name, coalesce(line_value, -1)) do update
+      set status = 'open',
+          updated_at = now()
+      returning id
+      `,
+      [matchId],
+    );
+    const scoreOptions: Array<[number, number]> = [];
+    for (let home = 0; home <= 5; home += 1) {
+      for (let away = 0; away <= 5; away += 1) {
+        scoreOptions.push([home, away]);
+      }
+    }
+
+    for (const [homeScore, awayScore] of scoreOptions) {
+      await client.query(
+        `
+        insert into odds(market_id, selection_key, selection_label, decimal_odds, status)
+        values ($1, $2, $3, 1.00, 'active'::odds_status)
+        on conflict (market_id, selection_key) do update
+        set selection_label = excluded.selection_label,
+            status = excluded.status,
+            updated_at = now()
+        `,
+        [
+          market.rows[0].id,
+          `score_${homeScore}_${awayScore}`,
+          `${homeTeamName} ${homeScore} - ${awayScore} ${awayTeamName}`,
+        ],
+      );
+    }
   }
 
   private toEcuadorDate(value: Date) {
