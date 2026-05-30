@@ -416,16 +416,17 @@ export class AdminService {
   async registerResult(adminId: string, matchId: string, dto: MatchResultDto) {
     const result = await this.db.query(
       `
-      insert into match_results(match_id, home_score, away_score, recorded_by)
-      values ($1,$2,$3,$4)
+      insert into match_results(match_id, home_score, away_score, champion_selection_key, recorded_by)
+      values ($1,$2,$3,$4,$5)
       on conflict (match_id) do update
       set home_score = excluded.home_score,
           away_score = excluded.away_score,
+          champion_selection_key = excluded.champion_selection_key,
           recorded_by = excluded.recorded_by,
           recorded_at = now()
       returning *
       `,
-      [matchId, dto.homeScore, dto.awayScore, adminId],
+      [matchId, dto.homeScore, dto.awayScore, dto.championSelectionKey ?? null, adminId],
     );
     await this.db.query(`update matches set status = 'finished' where id = $1`, [matchId]);
     await this.audit.log({
@@ -469,6 +470,7 @@ export class AdminService {
           result: {
             homeScore: matchResult.home_score,
             awayScore: matchResult.away_score,
+            championSelectionKey: matchResult.champion_selection_key,
           },
           settled: Number(status.already_settled),
           won: 0,
@@ -504,6 +506,7 @@ export class AdminService {
           row.selection_key,
           Number(matchResult.home_score),
           Number(matchResult.away_score),
+          matchResult.champion_selection_key,
         );
         const selectionStatus = selectionWon ? 'won' : 'lost';
         const betStatus = selectionWon ? 'won' : 'lost';
@@ -560,6 +563,7 @@ export class AdminService {
         result: {
           homeScore: matchResult.home_score,
           awayScore: matchResult.away_score,
+          championSelectionKey: matchResult.champion_selection_key,
         },
         settled: won + lost,
         won,
@@ -571,7 +575,7 @@ export class AdminService {
   async getMatchSettlement(matchId: string) {
     const result = await this.db.query(
       `
-      select home_score, away_score, is_official, recorded_at
+      select home_score, away_score, champion_selection_key, is_official, recorded_at
       from match_results
       where match_id = $1
       `,
@@ -585,6 +589,11 @@ export class AdminService {
         count(*) filter (where b.status = 'lost')::int as lost,
         count(*) filter (where b.status in ('active', 'paid'))::int as open_to_settle,
         count(*) filter (where b.status in ('won', 'lost'))::int as already_settled,
+        exists(
+          select 1
+          from betting_markets bm
+          where bm.match_id = $1 and bm.type = 'final_winner'
+        ) as has_final_winner_market,
         coalesce(sum(b.total_stake), 0) as total_stake,
         coalesce(sum(b.net_payout) filter (where b.status = 'won'), 0) as total_payout
       from bets b
@@ -620,6 +629,7 @@ export class AdminService {
       officialResult: result.rows[0] ?? null,
       canSettle: Boolean(result.rows[0]?.is_official),
       alreadySettled: Number(summary.rows[0]?.already_settled ?? 0) > 0 && Number(summary.rows[0]?.open_to_settle ?? 0) === 0,
+      hasFinalWinnerMarket: Boolean(summary.rows[0]?.has_final_winner_market),
       summary: summary.rows[0],
       bets: rows.rows,
     };
@@ -630,6 +640,7 @@ export class AdminService {
     selectionKey: string,
     homeScore: number,
     awayScore: number,
+    championSelectionKey?: string | null,
   ) {
     if (marketType === 'match_winner') {
       if (selectionKey === 'home_win') return homeScore > awayScore;
@@ -642,6 +653,18 @@ export class AdminService {
       const match = selectionKey.match(/^score_(\d+)_(\d+)$/);
       if (!match) return false;
       return Number(match[1]) === homeScore && Number(match[2]) === awayScore;
+    }
+
+    if (marketType === 'final_winner') {
+      if (homeScore > awayScore) return selectionKey === 'home_win';
+      if (awayScore > homeScore) return selectionKey === 'away_win';
+      if (championSelectionKey === 'home_win' || championSelectionKey === 'away_win') {
+        return selectionKey === championSelectionKey;
+      }
+      throw new BusinessError(
+        'FINAL_WINNER_REQUIRED',
+        'Debe indicar quien fue campeon para liquidar el mercado ganador del titulo.',
+      );
     }
 
     return false;
@@ -674,7 +697,12 @@ export class AdminService {
       left join odds o on o.market_id = bm.id
       where bm.match_id = $1
       group by bm.id
-      order by bm.type, bm.created_at
+      order by case bm.type
+        when 'match_winner' then 1
+        when 'final_winner' then 2
+        when 'exact_score' then 3
+        else 9
+      end, bm.created_at
       `,
       [matchId],
     );

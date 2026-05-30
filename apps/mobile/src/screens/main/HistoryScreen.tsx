@@ -92,6 +92,7 @@ export function HistoryScreen() {
 
 function marketLabel(type: string) {
   if (type === 'match_winner') return 'Resultado simple';
+  if (type === 'final_winner') return 'Ganador del titulo';
   if (type === 'exact_score') return 'Resultado por marcador';
   return type;
 }

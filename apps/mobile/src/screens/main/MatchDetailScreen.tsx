@@ -17,7 +17,7 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedScores, setSelectedScores] = useState<Record<string, { home: number; away: number }>>({});
-  const [selectedMarketType, setSelectedMarketType] = useState<'match_winner' | 'exact_score'>('match_winner');
+  const [selectedMarketType, setSelectedMarketType] = useState('match_winner');
 
   useEffect(() => {
     Promise.all([
@@ -27,6 +27,8 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
       .then(([nextMatch, nextMarkets]) => {
         setMatch(nextMatch);
         setMarkets(nextMarkets);
+        const availableTypes = getAvailableMarketTypes(nextMarkets);
+        setSelectedMarketType(availableTypes.includes('match_winner') ? 'match_winner' : availableTypes[0] ?? 'match_winner');
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el partido.'))
       .finally(() => setLoading(false));
@@ -74,16 +76,14 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
       {!isFinal ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>Mercados</Text>
         <View style={styles.marketMode}>
-          <RadioOption
-            label="Resultado simple"
-            selected={selectedMarketType === 'match_winner'}
-            onPress={() => setSelectedMarketType('match_winner')}
-          />
-          <RadioOption
-            label="Resultado por marcador"
-            selected={selectedMarketType === 'exact_score'}
-            onPress={() => setSelectedMarketType('exact_score')}
-          />
+          {getAvailableMarketTypes(markets).map((type) => (
+            <RadioOption
+              key={type}
+              label={marketModeLabel(type)}
+              selected={selectedMarketType === type}
+              onPress={() => setSelectedMarketType(type)}
+            />
+          ))}
         </View>
         {markets.filter((market) => market.type === selectedMarketType).map((market) => (
           <MarketCard
@@ -120,6 +120,18 @@ function RadioOption({ label, selected, onPress }: { label: string; selected: bo
       <Text style={[styles.radioLabel, selected && styles.radioLabelActive]}>{label}</Text>
     </Pressable>
   );
+}
+
+function getAvailableMarketTypes(markets: Market[]) {
+  const priority = ['match_winner', 'final_winner', 'exact_score'];
+  return priority.filter((type) => markets.some((market) => market.type === type));
+}
+
+function marketModeLabel(type: string) {
+  if (type === 'match_winner') return 'Resultado simple';
+  if (type === 'final_winner') return 'Ganador del titulo';
+  if (type === 'exact_score') return 'Resultado por marcador';
+  return type;
 }
 
 function MarketCard({

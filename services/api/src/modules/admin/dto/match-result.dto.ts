@@ -1,4 +1,4 @@
-import { IsInt, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
 
 export class MatchResultDto {
   @IsInt()
@@ -8,4 +8,8 @@ export class MatchResultDto {
   @IsInt()
   @Min(0)
   awayScore: number;
+
+  @IsOptional()
+  @IsIn(['home_win', 'away_win'])
+  championSelectionKey?: 'home_win' | 'away_win';
 }

@@ -122,7 +122,12 @@ export class MatchesService {
       left join odds o on o.market_id = bm.id and o.status = 'active'
       where bm.match_id = $1
       group by bm.id
-      order by bm.created_at asc
+      order by case bm.type
+        when 'match_winner' then 1
+        when 'final_winner' then 2
+        when 'exact_score' then 3
+        else 9
+      end, bm.created_at asc
       `,
       [matchId],
     );

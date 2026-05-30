@@ -17,11 +17,13 @@ interface SettlementSummary {
   officialResult: {
     home_score: number;
     away_score: number;
+    champion_selection_key?: 'home_win' | 'away_win' | null;
     is_official: boolean;
     recorded_at: string;
   } | null;
   canSettle: boolean;
   alreadySettled: boolean;
+  hasFinalWinnerMarket: boolean;
   summary: {
     total: number;
     won: number;
@@ -45,6 +47,7 @@ export function AdminResultsScreen() {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [homeScore, setHomeScore] = useState('0');
   const [awayScore, setAwayScore] = useState('0');
+  const [championSelectionKey, setChampionSelectionKey] = useState<'home_win' | 'away_win'>('home_win');
   const [settlement, setSettlement] = useState<SettlementSummary | null>(null);
   const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -65,6 +68,7 @@ export function AdminResultsScreen() {
       await api.post(`/admin/matches/${selectedMatch.id}/result`, {
         homeScore: Number(homeScore),
         awayScore: Number(awayScore),
+        championSelectionKey: settlement?.hasFinalWinnerMarket ? championSelectionKey : undefined,
       });
       setHomeScore('0');
       setAwayScore('0');
@@ -128,7 +132,11 @@ export function AdminResultsScreen() {
     try {
       setProcessingMessage('Cargando resumen de liquidacion...');
       setProcessing(true);
-      setSettlement(await api.get<SettlementSummary>(`/admin/matches/${matchId}/settlement`));
+      const nextSettlement = await api.get<SettlementSummary>(`/admin/matches/${matchId}/settlement`);
+      setSettlement(nextSettlement);
+      if (nextSettlement.officialResult?.champion_selection_key) {
+        setChampionSelectionKey(nextSettlement.officialResult.champion_selection_key);
+      }
     } catch (err) {
       setSettlement(null);
       setPopup({
@@ -152,6 +160,7 @@ export function AdminResultsScreen() {
           setSelectedMatch(match);
           setSettlement(null);
           setPopup(null);
+          setChampionSelectionKey('home_win');
           void loadSettlement(match.id);
         }}
       />
@@ -159,6 +168,7 @@ export function AdminResultsScreen() {
         {settlement?.officialResult ? (
           <Text style={styles.success}>
             Resultado oficial registrado: {settlement.officialResult.home_score} - {settlement.officialResult.away_score}
+            {settlement.officialResult.champion_selection_key ? `, campeon: ${championLabel(settlement.officialResult.champion_selection_key, selectedMatch)}` : ''}
           </Text>
         ) : selectedMatch ? (
           <Text style={styles.warning}>Sin resultado oficial. No se pueden liquidar apuestas todavia.</Text>
@@ -175,6 +185,21 @@ export function AdminResultsScreen() {
           onChangeText={(value) => setAwayScore(onlyNonNegativeInteger(value))}
           keyboardType="number-pad"
         />
+        {settlement?.hasFinalWinnerMarket && selectedMatch ? (
+          <View style={styles.championBox}>
+            <Text style={styles.cardTitle}>Ganador del titulo</Text>
+            <Button
+              title={selectedMatch.home_team_name}
+              variant={championSelectionKey === 'home_win' ? 'primary' : 'secondary'}
+              onPress={() => setChampionSelectionKey('home_win')}
+            />
+            <Button
+              title={selectedMatch.away_team_name}
+              variant={championSelectionKey === 'away_win' ? 'primary' : 'secondary'}
+              onPress={() => setChampionSelectionKey('away_win')}
+            />
+          </View>
+        ) : null}
         <Button title="Registrar resultado" onPress={saveResult} disabled={!selectedMatch} />
         <Button
           title="Liquidar apuestas"
@@ -216,6 +241,11 @@ export function AdminResultsScreen() {
   );
 }
 
+function championLabel(selectionKey: 'home_win' | 'away_win', match: Match | null) {
+  if (!match) return selectionKey;
+  return selectionKey === 'home_win' ? match.home_team_name : match.away_team_name;
+}
+
 const styles = StyleSheet.create({
   header: { gap: spacing.sm },
   title: { ...typography.title, color: colors.text },
@@ -232,4 +262,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   betEmail: { color: colors.text, fontWeight: '900' },
+  championBox: {
+    gap: spacing.sm,
+  },
 });

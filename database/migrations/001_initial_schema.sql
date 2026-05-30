@@ -13,7 +13,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
-  create type market_type as enum ('match_winner', 'exact_score', 'total_goals', 'both_teams_score', 'parlay');
+  create type market_type as enum ('match_winner', 'final_winner', 'exact_score', 'total_goals', 'both_teams_score', 'parlay');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -163,6 +163,7 @@ create table if not exists match_results (
   match_id uuid not null references matches(id),
   home_score integer not null,
   away_score integer not null,
+  champion_selection_key text,
   source text not null default 'admin',
   is_official boolean not null default true,
   recorded_by uuid references profiles(id),
