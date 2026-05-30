@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsDateString, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 export class CreateBankTransferDto {
   @IsUUID()
@@ -8,7 +8,9 @@ export class CreateBankTransferDto {
   bankAccountId: string;
 
   @IsString()
-  @MaxLength(80)
+  @Matches(/^\d{4,30}$/, {
+    message: 'El numero de transferencia debe tener solo digitos, entre 4 y 30 caracteres.',
+  })
   transferNumber: string;
 
   @IsString()

@@ -34,6 +34,10 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
   const [submitting, setSubmitting] = useState(false);
   const [popup, setPopup] = useState<{ title: string; message: string; onAccept?: () => void } | null>(null);
 
+  function onlyTransferDigits(value: string) {
+    return value.replace(/\D/g, '').slice(0, 30);
+  }
+
   useEffect(() => {
     api
       .get<BankAccount[]>('/payments/bank-accounts')
@@ -98,7 +102,13 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
 
       <InfoCard>
         <Text style={styles.cardTitle}>Datos requeridos</Text>
-        <TextField label="Numero de transferencia" value={transferNumber} onChangeText={setTransferNumber} />
+        <TextField
+          label="Numero de transferencia"
+          value={transferNumber}
+          onChangeText={(value) => setTransferNumber(onlyTransferDigits(value))}
+          keyboardType="number-pad"
+          maxLength={30}
+        />
         <TextField label="Banco origen" value={senderBank} onChangeText={setSenderBank} />
         <TextField label="Nombre del depositante" value={senderName} onChangeText={setSenderName} />
         <TextField label="Identificación del depositante" value={senderDocument} onChangeText={setSenderDocument} />

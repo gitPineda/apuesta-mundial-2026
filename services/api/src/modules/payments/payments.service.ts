@@ -13,6 +13,7 @@ export class PaymentsService {
   ) {}
 
   async createBankTransfer(userId: string, dto: CreateBankTransferDto) {
+    const transferNumber = dto.transferNumber.trim();
     return this.db.transaction(async (client) => {
       const betResult = await client.query(
         `select * from bets where id = $1 and user_id = $2 for update`,
@@ -40,7 +41,7 @@ export class PaymentsService {
         values ($1,$2,'bank_transfer',$3,'pending',$4)
         returning *
         `,
-        [bet.id, userId, bet.total_stake, `bank-${bet.id}-${dto.transferNumber}`],
+        [bet.id, userId, bet.total_stake, `bank-${bet.id}-${transferNumber}`],
       );
       const payment = paymentResult.rows[0];
 
@@ -62,7 +63,7 @@ export class PaymentsService {
         [
           payment.id,
           dto.bankAccountId,
-          dto.transferNumber,
+          transferNumber,
           dto.senderBank,
           dto.senderName,
           dto.senderDocument ?? null,
