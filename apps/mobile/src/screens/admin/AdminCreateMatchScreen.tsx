@@ -11,6 +11,7 @@ import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
 export function AdminCreateMatchScreen() {
+  const [matchKind, setMatchKind] = useState<'normal' | 'final'>('normal');
   const [homeTeamCode, setHomeTeamCode] = useState('ECU');
   const [homeTeamName, setHomeTeamName] = useState('Ecuador');
   const [awayTeamCode, setAwayTeamCode] = useState('');
@@ -43,6 +44,7 @@ export function AdminCreateMatchScreen() {
     setLoading(true);
     try {
       const match = await api.post<{ id: string }>('/admin/matches', {
+        matchKind,
         homeTeamCode,
         homeTeamName,
         awayTeamCode,
@@ -58,7 +60,7 @@ export function AdminCreateMatchScreen() {
         bettingCutoffMinutes: Number(bettingCutoffMinutes),
         bettingEnabled: true,
         homeWinOdds: Number(homeWinOdds),
-        drawOdds: Number(drawOdds),
+        drawOdds: matchKind === 'normal' ? Number(drawOdds) : undefined,
         awayWinOdds: Number(awayWinOdds),
       });
       setSuccess(`Partido guardado correctamente. ID: ${match.id}`);
@@ -85,7 +87,8 @@ export function AdminCreateMatchScreen() {
     if (!venueName.trim() || !venueCity.trim() || !venueCountry.trim() || !venueTimezone.trim()) {
       return 'Completa los datos de la sede.';
     }
-    if ([homeWinOdds, drawOdds, awayWinOdds].some((value) => Number(value) < 1 || Number.isNaN(Number(value)))) {
+    const oddsToValidate = matchKind === 'normal' ? [homeWinOdds, drawOdds, awayWinOdds] : [homeWinOdds, awayWinOdds];
+    if (oddsToValidate.some((value) => Number(value) < 1 || Number.isNaN(Number(value)))) {
       return 'Las cuotas deben ser numeros mayores o iguales a 1.';
     }
     if (Number(bettingCutoffMinutes) < 0 || Number.isNaN(Number(bettingCutoffMinutes))) {
@@ -98,7 +101,7 @@ export function AdminCreateMatchScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>Nuevo partido</Text>
-        <Text style={styles.subtitle}>Crea partidos especiales y sus cuotas de resultado simple.</Text>
+        <Text style={styles.subtitle}>Crea partidos especiales y sus mercados de apuesta.</Text>
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -128,6 +131,18 @@ export function AdminCreateMatchScreen() {
       <InfoCard>
         <Text style={styles.cardTitle}>Clasificacion</Text>
         <View style={styles.grid}>
+          <View style={styles.segment}>
+            <Button
+              title="Partido normal"
+              variant={matchKind === 'normal' ? 'primary' : 'secondary'}
+              onPress={() => setMatchKind('normal')}
+            />
+            <Button
+              title="Final"
+              variant={matchKind === 'final' ? 'primary' : 'secondary'}
+              onPress={() => setMatchKind('final')}
+            />
+          </View>
           <TextField label="Torneo / categoria" value={tournamentName} onChangeText={setTournamentName} />
           <TextField label="Fase" value={phase} onChangeText={setPhase} />
           <TextField label="Cierre antes del partido, minutos" value={bettingCutoffMinutes} onChangeText={setBettingCutoffMinutes} keyboardType="numeric" />
@@ -135,11 +150,23 @@ export function AdminCreateMatchScreen() {
       </InfoCard>
 
       <InfoCard>
-        <Text style={styles.cardTitle}>Resultado simple</Text>
+        <Text style={styles.cardTitle}>{matchKind === 'final' ? 'Ganador del titulo' : 'Resultado simple'}</Text>
         <View style={styles.grid}>
-          <TextField label="Cuota gana local" value={homeWinOdds} onChangeText={setHomeWinOdds} keyboardType="decimal-pad" />
-          <TextField label="Cuota empate" value={drawOdds} onChangeText={setDrawOdds} keyboardType="decimal-pad" />
-          <TextField label="Cuota gana visitante" value={awayWinOdds} onChangeText={setAwayWinOdds} keyboardType="decimal-pad" />
+          <TextField
+            label={matchKind === 'final' ? 'Cuota campeon local' : 'Cuota gana local'}
+            value={homeWinOdds}
+            onChangeText={setHomeWinOdds}
+            keyboardType="decimal-pad"
+          />
+          {matchKind === 'normal' ? (
+            <TextField label="Cuota empate" value={drawOdds} onChangeText={setDrawOdds} keyboardType="decimal-pad" />
+          ) : null}
+          <TextField
+            label={matchKind === 'final' ? 'Cuota campeon visitante' : 'Cuota gana visitante'}
+            value={awayWinOdds}
+            onChangeText={setAwayWinOdds}
+            keyboardType="decimal-pad"
+          />
         </View>
       </InfoCard>
 
@@ -177,5 +204,8 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.danger,
+  },
+  segment: {
+    gap: spacing.sm,
   },
 });

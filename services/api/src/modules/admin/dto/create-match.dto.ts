@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -12,6 +13,10 @@ import {
 } from 'class-validator';
 
 export class CreateMatchDto {
+  @IsOptional()
+  @IsIn(['normal', 'final'])
+  matchKind?: 'normal' | 'final';
+
   @IsString()
   @MaxLength(12)
   homeTeamCode: string;
@@ -84,7 +89,8 @@ export class CreateMatchDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  drawOdds: number;
+  @IsOptional()
+  drawOdds?: number;
 
   @Type(() => Number)
   @IsNumber()

@@ -124,6 +124,7 @@ export class AdminService {
     const venueTimezone = dto.venueTimezone?.trim() || 'America/New_York';
     const phase = dto.phase?.trim() || 'special';
     const externalId = this.createMatchExternalId(homeCode, awayCode, dto.kickoffDateEc);
+    const matchKind = dto.matchKind ?? 'normal';
 
     return this.db.transaction(async (client) => {
       const tournament = await client.query(
@@ -247,40 +248,29 @@ export class AdminService {
         ],
       );
 
-      const market = await client.query(
-        `
-        insert into betting_markets(match_id, type, name, status)
-        values ($1, 'match_winner'::market_type, 'Resultado simple', 'open'::market_status)
-        on conflict (match_id, type, name, coalesce(line_value, -1)) do update
-        set status = 'open',
-            updated_at = now()
-        returning id
-        `,
-        [match.rows[0].id],
-      );
-
-      await client.query(
-        `
-        insert into odds(market_id, selection_key, selection_label, decimal_odds, status)
-        values
-          ($1, 'home_win', $2, $3, 'active'::odds_status),
-          ($1, 'draw', 'Empate', $4, 'active'::odds_status),
-          ($1, 'away_win', $5, $6, 'active'::odds_status)
-        on conflict (market_id, selection_key) do update
-        set selection_label = excluded.selection_label,
-            decimal_odds = excluded.decimal_odds,
-            status = excluded.status,
-            updated_at = now()
-        `,
-        [
-          market.rows[0].id,
-          `${dto.homeTeamName.trim()} gana`,
+      if (matchKind === 'final') {
+        await this.ensureFinalWinnerMarket(
+          client,
+          match.rows[0].id,
+          dto.homeTeamName.trim(),
+          dto.awayTeamName.trim(),
+          dto.homeWinOdds,
+          dto.awayWinOdds,
+        );
+      } else {
+        if (dto.drawOdds === undefined || Number(dto.drawOdds) < 1) {
+          throw new BusinessError('DRAW_ODDS_REQUIRED', 'La cuota de empate es requerida para partidos normales.');
+        }
+        await this.ensureMatchWinnerMarket(
+          client,
+          match.rows[0].id,
+          dto.homeTeamName.trim(),
+          dto.awayTeamName.trim(),
           dto.homeWinOdds,
           dto.drawOdds,
-          `${dto.awayTeamName.trim()} gana`,
           dto.awayWinOdds,
-        ],
-      );
+        );
+      }
 
       await this.ensureExactScoreMarket(
         client,
@@ -298,8 +288,9 @@ export class AdminService {
         afterData: {
           ...match.rows[0],
           odds: {
+            matchKind,
             homeWin: dto.homeWinOdds,
-            draw: dto.drawOdds,
+            draw: matchKind === 'normal' ? dto.drawOdds : null,
             awayWin: dto.awayWinOdds,
           },
         },
@@ -1038,6 +1029,97 @@ export class AdminService {
         ],
       );
     }
+  }
+
+  private async ensureMatchWinnerMarket(
+    client: {
+      query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+    },
+    matchId: string,
+    homeTeamName: string,
+    awayTeamName: string,
+    homeWinOdds: number,
+    drawOdds: number,
+    awayWinOdds: number,
+  ) {
+    const market = await client.query(
+      `
+      insert into betting_markets(match_id, type, name, status)
+      values ($1, 'match_winner'::market_type, 'Resultado simple', 'open'::market_status)
+      on conflict (match_id, type, name, coalesce(line_value, -1)) do update
+      set status = 'open',
+          updated_at = now()
+      returning id
+      `,
+      [matchId],
+    );
+
+    await client.query(
+      `
+      insert into odds(market_id, selection_key, selection_label, decimal_odds, status)
+      values
+        ($1, 'home_win', $2, $3, 'active'::odds_status),
+        ($1, 'draw', 'Empate', $4, 'active'::odds_status),
+        ($1, 'away_win', $5, $6, 'active'::odds_status)
+      on conflict (market_id, selection_key) do update
+      set selection_label = excluded.selection_label,
+          decimal_odds = excluded.decimal_odds,
+          status = excluded.status,
+          updated_at = now()
+      `,
+      [
+        market.rows[0].id,
+        `${homeTeamName} gana`,
+        homeWinOdds,
+        drawOdds,
+        `${awayTeamName} gana`,
+        awayWinOdds,
+      ],
+    );
+  }
+
+  private async ensureFinalWinnerMarket(
+    client: {
+      query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+    },
+    matchId: string,
+    homeTeamName: string,
+    awayTeamName: string,
+    homeWinOdds: number,
+    awayWinOdds: number,
+  ) {
+    const market = await client.query(
+      `
+      insert into betting_markets(match_id, type, name, status)
+      values ($1, 'final_winner'::market_type, 'Ganador del titulo', 'open'::market_status)
+      on conflict (match_id, type, name, coalesce(line_value, -1)) do update
+      set status = 'open',
+          updated_at = now()
+      returning id
+      `,
+      [matchId],
+    );
+
+    await client.query(
+      `
+      insert into odds(market_id, selection_key, selection_label, decimal_odds, status)
+      values
+        ($1, 'home_win', $2, $3, 'active'::odds_status),
+        ($1, 'away_win', $4, $5, 'active'::odds_status)
+      on conflict (market_id, selection_key) do update
+      set selection_label = excluded.selection_label,
+          decimal_odds = excluded.decimal_odds,
+          status = excluded.status,
+          updated_at = now()
+      `,
+      [
+        market.rows[0].id,
+        `${homeTeamName} campeon`,
+        homeWinOdds,
+        `${awayTeamName} campeon`,
+        awayWinOdds,
+      ],
+    );
   }
 
   private toEcuadorDate(value: Date) {
