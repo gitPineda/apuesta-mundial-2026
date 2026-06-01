@@ -45,32 +45,16 @@ export class PaymentsService {
       );
       const payment = paymentResult.rows[0];
 
-      const receiptResult = await client.query(
-        `
-        insert into bank_transfer_receipts(
-          payment_id,
-          bank_account_id,
-          transfer_number,
-          sender_bank,
-          sender_name,
-          sender_document,
-          transfer_date,
-          receipt_file_url
-        )
-        values ($1,$2,$3,$4,$5,$6,$7,$8)
-        returning *
-        `,
-        [
-          payment.id,
-          dto.bankAccountId,
-          transferNumber,
-          dto.senderBank,
-          dto.senderName,
-          dto.senderDocument ?? null,
-          dto.transferDate,
-          dto.receiptFileUrl ?? null,
-        ],
-      );
+      const receiptResult = await this.insertBankTransferReceipt(client, {
+        paymentId: payment.id,
+        bankAccountId: dto.bankAccountId,
+        transferNumber,
+        senderBank: dto.senderBank,
+        senderName: dto.senderName,
+        senderDocument: dto.senderDocument ?? null,
+        transferDate: dto.transferDate,
+        receiptFileUrl: dto.receiptFileUrl ?? null,
+      });
 
       await client.query(
         `
@@ -103,6 +87,70 @@ export class PaymentsService {
       `,
     );
     return result.rows;
+  }
+
+  private async insertBankTransferReceipt(
+    client: {
+      query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+    },
+    input: {
+      paymentId: string;
+      bankAccountId: string;
+      transferNumber: string;
+      senderBank: string;
+      senderName: string;
+      senderDocument: string | null;
+      transferDate: string;
+      receiptFileUrl: string | null;
+    },
+  ) {
+    try {
+      return await client.query(
+        `
+        insert into bank_transfer_receipts(
+          payment_id,
+          bank_account_id,
+          transfer_number,
+          sender_bank,
+          sender_name,
+          sender_document,
+          transfer_date,
+          receipt_file_url
+        )
+        values ($1,$2,$3,$4,$5,$6,$7,$8)
+        returning *
+        `,
+        [
+          input.paymentId,
+          input.bankAccountId,
+          input.transferNumber,
+          input.senderBank,
+          input.senderName,
+          input.senderDocument,
+          input.transferDate,
+          input.receiptFileUrl,
+        ],
+      );
+    } catch (error) {
+      if (this.isDuplicateTransferReceiptError(error)) {
+        throw new BusinessError(
+          'BANK_TRANSFER_DUPLICATED',
+          'Ese numero de transferencia ya fue registrado para ese banco. Verifica el comprobante o usa otro numero.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  private isDuplicateTransferReceiptError(error: unknown) {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      'constraint' in error &&
+      (error as { code?: string }).code === '23505' &&
+      (error as { constraint?: string }).constraint === 'bank_transfer_receipts_transfer_number_sender_bank_key'
+    );
   }
 
   async initiatePayphone(userId: string, dto: InitiatePayphoneDto) {
