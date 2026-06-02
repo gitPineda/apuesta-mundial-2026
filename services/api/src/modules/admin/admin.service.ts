@@ -256,6 +256,19 @@ export class AdminService {
           dto.awayTeamName.trim(),
           dto.homeWinOdds,
           dto.awayWinOdds,
+          'Ganador del titulo',
+          'campeon',
+        );
+      } else if (matchKind === 'elimination') {
+        await this.ensureFinalWinnerMarket(
+          client,
+          match.rows[0].id,
+          dto.homeTeamName.trim(),
+          dto.awayTeamName.trim(),
+          dto.homeWinOdds,
+          dto.awayWinOdds,
+          'Ganador del partido',
+          'gana',
         );
       } else {
         if (dto.drawOdds === undefined || Number(dto.drawOdds) < 1) {
@@ -1087,17 +1100,19 @@ export class AdminService {
     awayTeamName: string,
     homeWinOdds: number,
     awayWinOdds: number,
+    marketName: string,
+    labelSuffix: string,
   ) {
     const market = await client.query(
       `
       insert into betting_markets(match_id, type, name, status)
-      values ($1, 'final_winner'::market_type, 'Ganador del titulo', 'open'::market_status)
+      values ($1, 'final_winner'::market_type, $2, 'open'::market_status)
       on conflict (match_id, type, name, coalesce(line_value, -1)) do update
       set status = 'open',
           updated_at = now()
       returning id
       `,
-      [matchId],
+      [matchId, marketName],
     );
 
     await client.query(
@@ -1114,9 +1129,9 @@ export class AdminService {
       `,
       [
         market.rows[0].id,
-        `${homeTeamName} campeon`,
+        `${homeTeamName} ${labelSuffix}`,
         homeWinOdds,
-        `${awayTeamName} campeon`,
+        `${awayTeamName} ${labelSuffix}`,
         awayWinOdds,
       ],
     );

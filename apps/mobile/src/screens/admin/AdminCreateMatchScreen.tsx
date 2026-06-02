@@ -11,7 +11,7 @@ import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
 export function AdminCreateMatchScreen() {
-  const [matchKind, setMatchKind] = useState<'normal' | 'final'>('normal');
+  const [matchKind, setMatchKind] = useState<'normal' | 'elimination' | 'final'>('normal');
   const [homeTeamCode, setHomeTeamCode] = useState('ECU');
   const [homeTeamName, setHomeTeamName] = useState('Ecuador');
   const [awayTeamCode, setAwayTeamCode] = useState('');
@@ -138,6 +138,11 @@ export function AdminCreateMatchScreen() {
               onPress={() => setMatchKind('normal')}
             />
             <Button
+              title="Eliminacion directa"
+              variant={matchKind === 'elimination' ? 'primary' : 'secondary'}
+              onPress={() => setMatchKind('elimination')}
+            />
+            <Button
               title="Final"
               variant={matchKind === 'final' ? 'primary' : 'secondary'}
               onPress={() => setMatchKind('final')}
@@ -150,10 +155,10 @@ export function AdminCreateMatchScreen() {
       </InfoCard>
 
       <InfoCard>
-        <Text style={styles.cardTitle}>{matchKind === 'final' ? 'Ganador del titulo' : 'Resultado simple'}</Text>
+        <Text style={styles.cardTitle}>{marketTitle(matchKind)}</Text>
         <View style={styles.grid}>
           <TextField
-            label={matchKind === 'final' ? 'Cuota campeon local' : 'Cuota gana local'}
+            label={homeOddsLabel(matchKind)}
             value={homeWinOdds}
             onChangeText={setHomeWinOdds}
             keyboardType="decimal-pad"
@@ -162,7 +167,7 @@ export function AdminCreateMatchScreen() {
             <TextField label="Cuota empate" value={drawOdds} onChangeText={setDrawOdds} keyboardType="decimal-pad" />
           ) : null}
           <TextField
-            label={matchKind === 'final' ? 'Cuota campeon visitante' : 'Cuota gana visitante'}
+            label={awayOddsLabel(matchKind)}
             value={awayWinOdds}
             onChangeText={setAwayWinOdds}
             keyboardType="decimal-pad"
@@ -180,6 +185,24 @@ export function AdminCreateMatchScreen() {
       />
     </Screen>
   );
+}
+
+function marketTitle(matchKind: 'normal' | 'elimination' | 'final') {
+  if (matchKind === 'final') return 'Ganador del titulo';
+  if (matchKind === 'elimination') return 'Ganador del partido';
+  return 'Resultado simple';
+}
+
+function homeOddsLabel(matchKind: 'normal' | 'elimination' | 'final') {
+  if (matchKind === 'final') return 'Cuota campeon local';
+  if (matchKind === 'elimination') return 'Cuota ganador local';
+  return 'Cuota gana local';
+}
+
+function awayOddsLabel(matchKind: 'normal' | 'elimination' | 'final') {
+  if (matchKind === 'final') return 'Cuota campeon visitante';
+  if (matchKind === 'elimination') return 'Cuota ganador visitante';
+  return 'Cuota gana visitante';
 }
 
 const styles = StyleSheet.create({

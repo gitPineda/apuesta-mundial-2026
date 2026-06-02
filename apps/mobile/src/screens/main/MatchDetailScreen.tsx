@@ -28,7 +28,7 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
         setMatch(nextMatch);
         setMarkets(nextMarkets);
         const availableTypes = getAvailableMarketTypes(nextMarkets);
-        setSelectedMarketType(availableTypes.includes('match_winner') ? 'match_winner' : availableTypes[0] ?? 'match_winner');
+        setSelectedMarketType(availableTypes.some((mode) => mode.type === 'match_winner') ? 'match_winner' : availableTypes[0]?.type ?? 'match_winner');
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el partido.'))
       .finally(() => setLoading(false));
@@ -76,12 +76,12 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
       {!isFinal ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>Mercados</Text>
         <View style={styles.marketMode}>
-          {getAvailableMarketTypes(markets).map((type) => (
+          {getAvailableMarketTypes(markets).map((mode) => (
             <RadioOption
-              key={type}
-              label={marketModeLabel(type)}
-              selected={selectedMarketType === type}
-              onPress={() => setSelectedMarketType(type)}
+              key={mode.type}
+              label={mode.label}
+              selected={selectedMarketType === mode.type}
+              onPress={() => setSelectedMarketType(mode.type)}
             />
           ))}
         </View>
@@ -124,14 +124,16 @@ function RadioOption({ label, selected, onPress }: { label: string; selected: bo
 
 function getAvailableMarketTypes(markets: Market[]) {
   const priority = ['match_winner', 'final_winner', 'exact_score'];
-  return priority.filter((type) => markets.some((market) => market.type === type));
-}
-
-function marketModeLabel(type: string) {
-  if (type === 'match_winner') return 'Resultado simple';
-  if (type === 'final_winner') return 'Ganador del titulo';
-  if (type === 'exact_score') return 'Resultado por marcador';
-  return type;
+  return priority
+    .map((type) => {
+      const market = markets.find((item) => item.type === type);
+      if (!market) return null;
+      return {
+        type,
+        label: type === 'exact_score' ? 'Resultado por marcador' : market.name,
+      };
+    })
+    .filter((item): item is { type: string; label: string } => Boolean(item));
 }
 
 function MarketCard({

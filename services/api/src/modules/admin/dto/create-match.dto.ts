@@ -14,8 +14,8 @@ import {
 
 export class CreateMatchDto {
   @IsOptional()
-  @IsIn(['normal', 'final'])
-  matchKind?: 'normal' | 'final';
+  @IsIn(['normal', 'elimination', 'final'])
+  matchKind?: 'normal' | 'elimination' | 'final';
 
   @IsString()
   @MaxLength(12)

@@ -66,7 +66,7 @@ export function HistoryScreen() {
                 <View style={styles.selectionBox}>
                   <Text style={styles.matchTitle}>{selection.homeTeamName} vs {selection.awayTeamName}</Text>
                   <Text style={styles.selectionLine}>
-                    {marketLabel(selection.marketType)}: {selection.selectionLabel}
+                    {marketLabel(selection.marketType, selection.marketName)}: {selection.selectionLabel}
                   </Text>
                   <Text style={styles.selectionMeta}>
                     {selection.kickoffLocalDate ?? ''} {selection.kickoffLocalTime ?? ''}
@@ -90,9 +90,9 @@ export function HistoryScreen() {
   );
 }
 
-function marketLabel(type: string) {
+function marketLabel(type: string, marketName?: string) {
   if (type === 'match_winner') return 'Resultado simple';
-  if (type === 'final_winner') return 'Ganador del titulo';
+  if (type === 'final_winner') return marketName || 'Ganador del partido';
   if (type === 'exact_score') return 'Resultado por marcador';
   return type;
 }
