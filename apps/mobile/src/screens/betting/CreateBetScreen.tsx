@@ -12,7 +12,7 @@ import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { Bet, BetQuote } from '../../types/api';
 import { AppScreenProps } from '../../navigation/types';
-import { onlyDecimal } from '../../utils/inputMasks';
+import { onlyDigits } from '../../utils/inputMasks';
 
 export function CreateBetScreen({ navigation, route }: AppScreenProps<'CreateBet'>) {
   const { oddsId, selectionLabel } = route.params;
@@ -73,8 +73,8 @@ export function CreateBetScreen({ navigation, route }: AppScreenProps<'CreateBet
       <TextField
         label="Monto a apostar"
         value={stake}
-        onChangeText={(value) => setStake(onlyDecimal(value, 6, 2))}
-        keyboardType="decimal-pad"
+        onChangeText={(value) => setStake(onlyDigits(value, 6))}
+        keyboardType="number-pad"
       />
 
       <Button title="Calcular ganancia" onPress={requestQuote} loading={loadingQuote} disabled={!numericStake || numericStake <= 0} />
