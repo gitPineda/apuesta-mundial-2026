@@ -9,6 +9,7 @@ import { api } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { isValidDateMask, maskDate, maskTime, onlyDecimal, onlyDigits, onlyLetters, onlyUppercaseCode } from '../../utils/inputMasks';
 
 export function AdminCreateMatchScreen() {
   const [matchKind, setMatchKind] = useState<'normal' | 'elimination' | 'final'>('normal');
@@ -78,7 +79,7 @@ export function AdminCreateMatchScreen() {
     if (homeTeamCode.trim().toUpperCase() === awayTeamCode.trim().toUpperCase()) {
       return 'Los equipos deben ser diferentes.';
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(kickoffDateEc)) {
+    if (!isValidDateMask(kickoffDateEc)) {
       return 'La fecha debe tener formato YYYY-MM-DD.';
     }
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(kickoffTimeEc)) {
@@ -109,21 +110,21 @@ export function AdminCreateMatchScreen() {
       <InfoCard>
         <Text style={styles.cardTitle}>Equipos</Text>
         <View style={styles.grid}>
-          <TextField label="Codigo local" value={homeTeamCode} onChangeText={setHomeTeamCode} autoCapitalize="characters" />
-          <TextField label="Equipo local" value={homeTeamName} onChangeText={setHomeTeamName} />
-          <TextField label="Codigo visitante" value={awayTeamCode} onChangeText={setAwayTeamCode} autoCapitalize="characters" />
-          <TextField label="Equipo visitante" value={awayTeamName} onChangeText={setAwayTeamName} />
+          <TextField label="Codigo local" value={homeTeamCode} onChangeText={(value) => setHomeTeamCode(onlyUppercaseCode(value))} autoCapitalize="characters" />
+          <TextField label="Equipo local" value={homeTeamName} onChangeText={(value) => setHomeTeamName(onlyLetters(value, 80))} />
+          <TextField label="Codigo visitante" value={awayTeamCode} onChangeText={(value) => setAwayTeamCode(onlyUppercaseCode(value))} autoCapitalize="characters" />
+          <TextField label="Equipo visitante" value={awayTeamName} onChangeText={(value) => setAwayTeamName(onlyLetters(value, 80))} />
         </View>
       </InfoCard>
 
       <InfoCard>
         <Text style={styles.cardTitle}>Fecha y sede</Text>
         <View style={styles.grid}>
-          <TextField label="Fecha Ecuador YYYY-MM-DD" value={kickoffDateEc} onChangeText={setKickoffDateEc} />
-          <TextField label="Hora Ecuador HH:mm" value={kickoffTimeEc} onChangeText={setKickoffTimeEc} />
+          <TextField label="Fecha Ecuador YYYY-MM-DD" value={kickoffDateEc} onChangeText={(value) => setKickoffDateEc(maskDate(value))} keyboardType="number-pad" placeholder="YYYY-MM-DD" maxLength={10} />
+          <TextField label="Hora Ecuador HH:mm" value={kickoffTimeEc} onChangeText={(value) => setKickoffTimeEc(maskTime(value))} keyboardType="number-pad" placeholder="HH:mm" maxLength={5} />
           <TextField label="Estadio / sede" value={venueName} onChangeText={setVenueName} />
-          <TextField label="Ciudad" value={venueCity} onChangeText={setVenueCity} />
-          <TextField label="Pais" value={venueCountry} onChangeText={setVenueCountry} />
+          <TextField label="Ciudad" value={venueCity} onChangeText={(value) => setVenueCity(onlyLetters(value, 80))} />
+          <TextField label="Pais" value={venueCountry} onChangeText={(value) => setVenueCountry(onlyLetters(value, 80))} />
           <TextField label="Zona horaria sede" value={venueTimezone} onChangeText={setVenueTimezone} />
         </View>
       </InfoCard>
@@ -150,7 +151,7 @@ export function AdminCreateMatchScreen() {
           </View>
           <TextField label="Torneo / categoria" value={tournamentName} onChangeText={setTournamentName} />
           <TextField label="Fase" value={phase} onChangeText={setPhase} />
-          <TextField label="Cierre antes del partido, minutos" value={bettingCutoffMinutes} onChangeText={setBettingCutoffMinutes} keyboardType="numeric" />
+          <TextField label="Cierre antes del partido, minutos" value={bettingCutoffMinutes} onChangeText={(value) => setBettingCutoffMinutes(onlyDigits(value, 4))} keyboardType="numeric" />
         </View>
       </InfoCard>
 
@@ -160,16 +161,16 @@ export function AdminCreateMatchScreen() {
           <TextField
             label={homeOddsLabel(matchKind)}
             value={homeWinOdds}
-            onChangeText={setHomeWinOdds}
+            onChangeText={(value) => setHomeWinOdds(onlyDecimal(value, 3, 2))}
             keyboardType="decimal-pad"
           />
           {matchKind === 'normal' ? (
-            <TextField label="Cuota empate" value={drawOdds} onChangeText={setDrawOdds} keyboardType="decimal-pad" />
+            <TextField label="Cuota empate" value={drawOdds} onChangeText={(value) => setDrawOdds(onlyDecimal(value, 3, 2))} keyboardType="decimal-pad" />
           ) : null}
           <TextField
             label={awayOddsLabel(matchKind)}
             value={awayWinOdds}
-            onChangeText={setAwayWinOdds}
+            onChangeText={(value) => setAwayWinOdds(onlyDecimal(value, 3, 2))}
             keyboardType="decimal-pad"
           />
         </View>

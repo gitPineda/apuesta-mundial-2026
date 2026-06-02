@@ -11,6 +11,7 @@ import { api } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { isValidDateMask, maskDate, onlyDigits, onlyLetters } from '../../utils/inputMasks';
 
 export function ProfileScreen() {
   const { profile, profileComplete, refreshProfile, signOut, user } = useAuth();
@@ -36,7 +37,7 @@ export function ProfileScreen() {
         setPopup({ title: 'Perfil incompleto', message: 'Completa usuario, nombre, fecha de nacimiento y telefono.' });
         return;
       }
-      if (!isValidBirthDate(birthDate)) {
+      if (!isValidDateMask(birthDate)) {
         setPopup({ title: 'Fecha invalida', message: 'Usa el formato YYYY-MM-DD y una fecha real.' });
         return;
       }
@@ -79,10 +80,17 @@ export function ProfileScreen() {
       </View>
 
       <InfoCard>
-        <TextField label="Usuario" value={username} onChangeText={setUsername} autoCapitalize="none" />
-        <TextField label="Nombre completo" value={fullName} onChangeText={setFullName} />
-        <TextField label="Fecha de nacimiento YYYY-MM-DD" value={birthDate} onChangeText={setBirthDate} />
-        <TextField label="Telefono" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+        <TextField label="Usuario" value={username} onChangeText={(value) => setUsername(onlyLetters(value, 80))} autoCapitalize="none" />
+        <TextField label="Nombre completo" value={fullName} onChangeText={(value) => setFullName(onlyLetters(value, 160))} />
+        <TextField
+          label="Fecha de nacimiento YYYY-MM-DD"
+          value={birthDate}
+          onChangeText={(value) => setBirthDate(maskDate(value))}
+          keyboardType="number-pad"
+          placeholder="YYYY-MM-DD"
+          maxLength={10}
+        />
+        <TextField label="Telefono" value={phone} onChangeText={(value) => setPhone(onlyDigits(value, 15))} keyboardType="phone-pad" />
         <Text style={styles.hint}>Debes ser mayor de edad y aceptar terminos para poder apostar.</Text>
         <Button title="Guardar perfil" onPress={saveProfile} loading={saving} />
       </InfoCard>
@@ -97,12 +105,6 @@ export function ProfileScreen() {
       />
     </Screen>
   );
-}
-
-function isValidBirthDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function isValidPhone(value: string) {

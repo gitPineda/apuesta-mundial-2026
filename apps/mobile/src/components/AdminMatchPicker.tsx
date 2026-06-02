@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { Match } from '../types/api';
+import { maskDate } from '../utils/inputMasks';
 import { Button } from './Button';
 import { InfoCard } from './InfoCard';
 import { TextField } from './TextField';
@@ -36,7 +37,14 @@ export function AdminMatchPicker({ selectedMatch, onSelect }: AdminMatchPickerPr
       <Text style={styles.title}>Seleccionar partido</Text>
       <View style={styles.row}>
         <View style={styles.inputWrap}>
-          <TextField label="Fecha Ecuador" value={date} onChangeText={setDate} />
+          <TextField
+            label="Fecha Ecuador"
+            value={date}
+            onChangeText={(value) => setDate(maskDate(value))}
+            keyboardType="number-pad"
+            placeholder="YYYY-MM-DD"
+            maxLength={10}
+          />
         </View>
         <View style={styles.buttonWrap}>
           <Button title="Buscar" onPress={load} />

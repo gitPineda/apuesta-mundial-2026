@@ -12,6 +12,7 @@ import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { Match } from '../../types/api';
+import { isValidDateMask, maskDate } from '../../utils/inputMasks';
 
 interface MatchBettor {
   user_id: string;
@@ -113,6 +114,12 @@ export function AdminReportsScreen() {
       });
       if (fromDate.trim()) query.set('fromDate', fromDate.trim());
       if (toDate.trim()) query.set('toDate', toDate.trim());
+      if (fromDate.trim() && !isValidDateMask(fromDate.trim())) {
+        throw new Error('La fecha desde debe tener formato YYYY-MM-DD y ser una fecha real.');
+      }
+      if (toDate.trim() && !isValidDateMask(toDate.trim())) {
+        throw new Error('La fecha hasta debe tener formato YYYY-MM-DD y ser una fecha real.');
+      }
 
       const response = await api.get<PaginatedResponse<TotalBetReportRow>>(`/reports/bets?${query.toString()}`);
       setTotalRows(response.items);
@@ -170,14 +177,20 @@ export function AdminReportsScreen() {
           <TextField
             label="Desde YYYY-MM-DD"
             value={fromDate}
-            onChangeText={setFromDate}
+            onChangeText={(value) => setFromDate(maskDate(value))}
             autoCapitalize="none"
+            keyboardType="number-pad"
+            placeholder="YYYY-MM-DD"
+            maxLength={10}
           />
           <TextField
             label="Hasta YYYY-MM-DD"
             value={toDate}
-            onChangeText={setToDate}
+            onChangeText={(value) => setToDate(maskDate(value))}
             autoCapitalize="none"
+            keyboardType="number-pad"
+            placeholder="YYYY-MM-DD"
+            maxLength={10}
           />
           <Button title="Filtrar" onPress={() => void loadTotalReport(1)} />
         </View>

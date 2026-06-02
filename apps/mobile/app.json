@@ -2,7 +2,7 @@
   "expo": {
     "name": "Apuesta Mundial 2026",
     "slug": "apuesta-mundial-2026",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -12,7 +12,7 @@
     },
     "android": {
       "usesCleartextTraffic": true,
-      "versionCode": 11,
+      "versionCode": 12,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

@@ -19,12 +19,16 @@ export class CreateBankTransferDto {
 
   @IsString()
   @MaxLength(120)
+  @Matches(/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]+$/, {
+    message: 'El nombre del depositante solo puede contener letras y espacios.',
+  })
   senderName: string;
 
-  @IsOptional()
   @IsString()
-  @MaxLength(30)
-  senderDocument?: string;
+  @Matches(/^\d{10}$/, {
+    message: 'La identificacion del depositante debe tener exactamente 10 digitos.',
+  })
+  senderDocument: string;
 
   @IsDateString()
   transferDate: string;

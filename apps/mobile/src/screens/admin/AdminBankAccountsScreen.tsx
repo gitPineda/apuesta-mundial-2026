@@ -10,6 +10,7 @@ import { api } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { onlyDigits, onlyLetters } from '../../utils/inputMasks';
 
 interface BankAccount {
   id: string;
@@ -113,11 +114,11 @@ export function AdminBankAccountsScreen() {
 
       <InfoCard>
         <Text style={styles.cardTitle}>{selectedId ? 'Editar cuenta' : 'Nueva cuenta'}</Text>
-        <TextField label="Banco" value={bankName} onChangeText={setBankName} />
-        <TextField label="Titular" value={accountHolder} onChangeText={setAccountHolder} />
-        <TextField label="Numero de cuenta" value={accountNumber} onChangeText={setAccountNumber} />
-        <TextField label="Tipo de cuenta" value={accountType} onChangeText={setAccountType} />
-        <TextField label="Documento/RUC" value={documentNumber} onChangeText={setDocumentNumber} />
+        <TextField label="Banco" value={bankName} onChangeText={(value) => setBankName(onlyLetters(value, 120))} />
+        <TextField label="Titular" value={accountHolder} onChangeText={(value) => setAccountHolder(onlyLetters(value, 160))} />
+        <TextField label="Numero de cuenta" value={accountNumber} onChangeText={(value) => setAccountNumber(onlyDigits(value, 30))} keyboardType="number-pad" />
+        <TextField label="Tipo de cuenta" value={accountType} onChangeText={(value) => setAccountType(onlyLetters(value, 40))} />
+        <TextField label="Documento/RUC" value={documentNumber} onChangeText={(value) => setDocumentNumber(onlyDigits(value, 13))} keyboardType="number-pad" />
         <TextField label="Instrucciones" value={instructions} onChangeText={setInstructions} multiline />
         <TextField label="Activa true/false" value={isActiveText} onChangeText={setIsActiveText} autoCapitalize="none" />
         <Button

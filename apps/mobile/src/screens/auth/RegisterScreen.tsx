@@ -11,6 +11,7 @@ import { AuthStackParamList } from '../../navigation/types';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { onlyLetters } from '../../utils/inputMasks';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -54,7 +55,7 @@ export function RegisterScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>Completa tus datos. El perfil y la mayoria de edad se validan antes de apostar.</Text>
       </View>
       <View style={styles.form}>
-        <TextField label="Usuario" value={username} onChangeText={setUsername} autoCapitalize="none" />
+        <TextField label="Usuario" value={username} onChangeText={(value) => setUsername(onlyLetters(value, 80))} autoCapitalize="none" />
         <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <PasswordField label="Clave" value={password} onChangeText={setPassword} />
         <ErrorText message={error} />

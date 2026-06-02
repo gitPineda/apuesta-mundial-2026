@@ -19,18 +19,30 @@ export class CreateMatchDto {
 
   @IsString()
   @MaxLength(12)
+  @Matches(/^[A-Za-z]+$/, {
+    message: 'El codigo del equipo local solo puede contener letras.',
+  })
   homeTeamCode: string;
 
   @IsString()
   @MaxLength(80)
+  @Matches(/^[^\d]+$/, {
+    message: 'El nombre del equipo local no puede contener numeros.',
+  })
   homeTeamName: string;
 
   @IsString()
   @MaxLength(12)
+  @Matches(/^[A-Za-z]+$/, {
+    message: 'El codigo del equipo visitante solo puede contener letras.',
+  })
   awayTeamCode: string;
 
   @IsString()
   @MaxLength(80)
+  @Matches(/^[^\d]+$/, {
+    message: 'El nombre del equipo visitante no puede contener numeros.',
+  })
   awayTeamName: string;
 
   @IsDateString()

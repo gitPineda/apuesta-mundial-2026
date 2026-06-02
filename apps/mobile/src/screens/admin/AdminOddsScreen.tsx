@@ -13,6 +13,7 @@ import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { Market } from '../../types/api';
 import { Match } from '../../types/api';
+import { onlyDecimal } from '../../utils/inputMasks';
 
 export function AdminOddsScreen() {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -79,7 +80,7 @@ export function AdminOddsScreen() {
       {selectedOdd ? (
         <InfoCard>
           <Text style={styles.cardTitle}>{selectedOdd.label}</Text>
-          <TextField label="Nuevo multiplicador" value={decimalOdds} onChangeText={setDecimalOdds} keyboardType="decimal-pad" />
+          <TextField label="Nuevo multiplicador" value={decimalOdds} onChangeText={(value) => setDecimalOdds(onlyDecimal(value, 3, 2))} keyboardType="decimal-pad" />
           <Button title="Guardar multiplicador" onPress={saveOdd} disabled={!decimalOdds.trim()} />
         </InfoCard>
       ) : null}

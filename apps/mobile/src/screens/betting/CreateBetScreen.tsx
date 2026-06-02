@@ -12,6 +12,7 @@ import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { Bet, BetQuote } from '../../types/api';
 import { AppScreenProps } from '../../navigation/types';
+import { onlyDecimal } from '../../utils/inputMasks';
 
 export function CreateBetScreen({ navigation, route }: AppScreenProps<'CreateBet'>) {
   const { oddsId, selectionLabel } = route.params;
@@ -72,7 +73,7 @@ export function CreateBetScreen({ navigation, route }: AppScreenProps<'CreateBet
       <TextField
         label="Monto a apostar"
         value={stake}
-        onChangeText={setStake}
+        onChangeText={(value) => setStake(onlyDecimal(value, 6, 2))}
         keyboardType="decimal-pad"
       />
 

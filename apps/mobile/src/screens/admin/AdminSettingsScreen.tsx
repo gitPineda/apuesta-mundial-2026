@@ -10,6 +10,7 @@ import { api } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { onlyDecimal, onlyLetters } from '../../utils/inputMasks';
 
 export function AdminSettingsScreen() {
   const [items, setItems] = useState<any[]>([]);
@@ -74,10 +75,10 @@ export function AdminSettingsScreen() {
         <Text style={styles.subtitle}>Comisiones aplicadas al pago ganador.</Text>
       </View>
       <InfoCard>
-        <TextField label="Nombre" value={name} onChangeText={setName} />
-        <TextField label="Comision app %" value={platformFeePercent} onChangeText={setPlatformFeePercent} keyboardType="decimal-pad" />
-        <TextField label="Comision operativa %" value={operatorFeePercent} onChangeText={setOperatorFeePercent} keyboardType="decimal-pad" />
-        <TextField label="Monto maximo de apuesta" value={maxBetAmount} onChangeText={setMaxBetAmount} keyboardType="decimal-pad" />
+        <TextField label="Nombre" value={name} onChangeText={(value) => setName(onlyLetters(value, 80))} />
+        <TextField label="Comision app %" value={platformFeePercent} onChangeText={(value) => setPlatformFeePercent(onlyDecimal(value, 3, 2))} keyboardType="decimal-pad" />
+        <TextField label="Comision operativa %" value={operatorFeePercent} onChangeText={(value) => setOperatorFeePercent(onlyDecimal(value, 3, 2))} keyboardType="decimal-pad" />
+        <TextField label="Monto maximo de apuesta" value={maxBetAmount} onChangeText={(value) => setMaxBetAmount(onlyDecimal(value, 6, 2))} keyboardType="decimal-pad" />
         <Button title="Crear y activar" onPress={create} loading={saving} />
       </InfoCard>
       {items.map((item) => (

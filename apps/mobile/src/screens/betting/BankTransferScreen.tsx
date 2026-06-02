@@ -11,6 +11,7 @@ import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { AppScreenProps } from '../../navigation/types';
+import { isValidDateMask, maskDate, onlyDigits, onlyLetters } from '../../utils/inputMasks';
 
 interface BankAccount {
   id: string;
@@ -34,10 +35,6 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
   const [submitting, setSubmitting] = useState(false);
   const [popup, setPopup] = useState<{ title: string; message: string; onAccept?: () => void } | null>(null);
 
-  function onlyTransferDigits(value: string) {
-    return value.replace(/\D/g, '').slice(0, 30);
-  }
-
   useEffect(() => {
     api
       .get<BankAccount[]>('/payments/bank-accounts')
@@ -53,6 +50,14 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
   }, []);
 
   async function submit() {
+    if (senderDocument.length !== 10) {
+      setPopup({ title: 'Identificacion invalida', message: 'La identificacion debe tener exactamente 10 digitos.' });
+      return;
+    }
+    if (!isValidDateMask(transferDate)) {
+      setPopup({ title: 'Fecha invalida', message: 'Usa el formato YYYY-MM-DD con una fecha real.' });
+      return;
+    }
     setSubmitting(true);
     try {
       await api.post('/payments/bank-transfer', {
@@ -105,19 +110,32 @@ export function BankTransferScreen({ navigation, route }: AppScreenProps<'BankTr
         <TextField
           label="Numero de transferencia"
           value={transferNumber}
-          onChangeText={(value) => setTransferNumber(onlyTransferDigits(value))}
+          onChangeText={(value) => setTransferNumber(onlyDigits(value, 30))}
           keyboardType="number-pad"
           maxLength={30}
         />
-        <TextField label="Banco origen" value={senderBank} onChangeText={setSenderBank} />
-        <TextField label="Nombre del depositante" value={senderName} onChangeText={setSenderName} />
-        <TextField label="Identificación del depositante" value={senderDocument} onChangeText={setSenderDocument} />
-        <TextField label="Fecha de transferencia" value={transferDate} onChangeText={setTransferDate} />
+        <TextField label="Banco origen" value={senderBank} onChangeText={(value) => setSenderBank(onlyLetters(value, 80))} />
+        <TextField label="Nombre del depositante" value={senderName} onChangeText={(value) => setSenderName(onlyLetters(value, 120))} />
+        <TextField
+          label="Identificacion del depositante"
+          value={senderDocument}
+          onChangeText={(value) => setSenderDocument(onlyDigits(value, 10))}
+          keyboardType="number-pad"
+          maxLength={10}
+        />
+        <TextField
+          label="Fecha de transferencia"
+          value={transferDate}
+          onChangeText={(value) => setTransferDate(maskDate(value))}
+          keyboardType="number-pad"
+          placeholder="YYYY-MM-DD"
+          maxLength={10}
+        />
         <Button
           title="Enviar a revision"
           onPress={submit}
           loading={submitting}
-          disabled={!bankAccount || !transferNumber || !senderBank || !senderName || !transferDate}
+          disabled={!bankAccount || !transferNumber || !senderBank || !senderName || senderDocument.length !== 10 || !isValidDateMask(transferDate)}
         />
       </InfoCard>
       <LoadingOverlay
