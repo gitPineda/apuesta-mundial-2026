@@ -11,13 +11,15 @@ import { AuthStackParamList } from '../../navigation/types';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
-import { onlyLetters } from '../../utils/inputMasks';
+import { onlyDigits, onlyLetters } from '../../utils/inputMasks';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen({ navigation }: Props) {
   const { signUp } = useAuth();
   const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [successVisible, setSuccessVisible] = useState(false);
@@ -28,7 +30,15 @@ export function RegisterScreen({ navigation }: Props) {
     setError('');
     setLoading(true);
     try {
-      await signUp(email.trim(), password, username.trim());
+      if (!username.trim() || !fullName.trim() || !phone.trim() || !email.trim()) {
+        setError('Completa usuario, nombre completo, telefono y correo.');
+        return;
+      }
+      if (phone.length < 7) {
+        setError('Ingresa un telefono de 7 a 15 digitos.');
+        return;
+      }
+      await signUp(email.trim(), password, username.trim(), fullName.trim(), phone.trim());
       setSuccessVisible(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear la cuenta.');
@@ -40,6 +50,8 @@ export function RegisterScreen({ navigation }: Props) {
   function acceptSuccess() {
     setSuccessVisible(false);
     setUsername('');
+    setFullName('');
+    setPhone('');
     setEmail('');
     setPassword('');
     navigation.reset({
@@ -52,14 +64,16 @@ export function RegisterScreen({ navigation }: Props) {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>Crear cuenta</Text>
-        <Text style={styles.subtitle}>Completa tus datos. El perfil y la mayoria de edad se validan antes de apostar.</Text>
+        <Text style={styles.subtitle}>Completa tus datos para crear tu cuenta e iniciar sesion.</Text>
       </View>
       <View style={styles.form}>
         <TextField label="Usuario" value={username} onChangeText={(value) => setUsername(onlyLetters(value, 80))} autoCapitalize="none" />
+        <TextField label="Nombre completo" value={fullName} onChangeText={(value) => setFullName(onlyLetters(value, 160))} />
+        <TextField label="Telefono" value={phone} onChangeText={(value) => setPhone(onlyDigits(value, 15))} keyboardType="phone-pad" />
         <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <PasswordField label="Clave" value={password} onChangeText={setPassword} />
         <ErrorText message={error} />
-        <Button title="Registrarme" onPress={submit} loading={loading} disabled={!username || !email || password.length < 6} />
+        <Button title="Registrarme" onPress={submit} loading={loading} disabled={!username || !fullName || phone.length < 7 || !email || password.length < 6} />
         <Button title="Volver al login" variant="secondary" onPress={() => navigation.goBack()} />
       </View>
       <Modal transparent visible={successVisible} animationType="fade" onRequestClose={acceptSuccess}>

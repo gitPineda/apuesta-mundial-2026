@@ -21,7 +21,7 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
 
   useEffect(() => {
     Promise.all([
-      api.get<Match>(`/matches/${matchId}`, false),
+      api.get<Match>(`/matches/${matchId}`),
       api.get<Market[]>(`/matches/${matchId}/markets`, false),
     ])
       .then(([nextMatch, nextMarkets]) => {

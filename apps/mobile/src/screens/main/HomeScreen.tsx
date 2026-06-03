@@ -82,7 +82,7 @@ export function HomeScreen() {
             <HomeActionCard
               icon={<ShieldCheck color={colors.success} size={24} />}
               title="Control"
-              text="Completa perfil, mayoria de edad y terminos."
+              text="Revisa y actualiza tus datos de perfil."
               onPress={() => navigation.navigate('MainTabs', { screen: 'ProfileTab' })}
             />
           </>

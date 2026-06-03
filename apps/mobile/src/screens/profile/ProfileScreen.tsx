@@ -11,13 +11,12 @@ import { api } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
-import { isValidDateMask, maskDate, onlyDigits, onlyLetters } from '../../utils/inputMasks';
+import { onlyDigits, onlyLetters } from '../../utils/inputMasks';
 
 export function ProfileScreen() {
   const { profile, profileComplete, refreshProfile, signOut, user } = useAuth();
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [popup, setPopup] = useState<{ title: string; message: string } | null>(null);
@@ -26,27 +25,21 @@ export function ProfileScreen() {
     if (!profile) return;
     setUsername(profile.username ?? '');
     setFullName(profile.full_name ?? '');
-    setBirthDate(profile.birth_date ?? '');
     setPhone(profile.phone ?? '');
   }, [profile]);
 
   async function saveProfile() {
     setSaving(true);
     try {
-      if (!username.trim() || !fullName.trim() || !birthDate.trim() || !phone.trim()) {
-        setPopup({ title: 'Perfil incompleto', message: 'Completa usuario, nombre, fecha de nacimiento y telefono.' });
-        return;
-      }
-      if (!isValidDateMask(birthDate)) {
-        setPopup({ title: 'Fecha invalida', message: 'Usa el formato YYYY-MM-DD y una fecha real.' });
+      if (!username.trim() || !fullName.trim() || !phone.trim()) {
+        setPopup({ title: 'Perfil incompleto', message: 'Completa usuario, nombre y telefono.' });
         return;
       }
       if (!isValidPhone(phone)) {
         setPopup({ title: 'Telefono invalido', message: 'Ingresa un telefono de 7 a 15 digitos.' });
         return;
       }
-      await api.patch('/me/profile', { username, fullName, birthDate, phone });
-      await api.post('/me/accept-terms', { termsVersion: 'mvp-2026-01' });
+      await api.patch('/me/profile', { username, fullName, phone });
       const updatedProfile = await refreshProfile();
       if (updatedProfile?.profile_completed) {
         setPopup({ title: 'Perfil guardado', message: 'Perfil completado correctamente.' });
@@ -82,16 +75,8 @@ export function ProfileScreen() {
       <InfoCard>
         <TextField label="Usuario" value={username} onChangeText={(value) => setUsername(onlyLetters(value, 80))} autoCapitalize="none" />
         <TextField label="Nombre completo" value={fullName} onChangeText={(value) => setFullName(onlyLetters(value, 160))} />
-        <TextField
-          label="Fecha de nacimiento YYYY-MM-DD"
-          value={birthDate}
-          onChangeText={(value) => setBirthDate(maskDate(value))}
-          keyboardType="number-pad"
-          placeholder="YYYY-MM-DD"
-          maxLength={10}
-        />
         <TextField label="Telefono" value={phone} onChangeText={(value) => setPhone(onlyDigits(value, 15))} keyboardType="phone-pad" />
-        <Text style={styles.hint}>Debes ser mayor de edad y aceptar terminos para poder apostar.</Text>
+        <Text style={styles.hint}>Mantén tus datos actualizados para identificar tus apuestas.</Text>
         <Button title="Guardar perfil" onPress={saveProfile} loading={saving} />
       </InfoCard>
 

@@ -7,9 +7,7 @@ export interface UserProfile {
   username: string;
   email: string;
   full_name?: string | null;
-  birth_date?: string | null;
   phone?: string | null;
-  is_adult_verified?: boolean;
   terms_accepted?: boolean;
   profile_completed?: boolean;
   roles?: string[];
@@ -23,7 +21,7 @@ interface AuthContextValue {
   profileComplete: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, fullName: string, phone: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   confirmResetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
   refreshProfile: () => Promise<UserProfile | null>;
@@ -91,8 +89,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await saveSession(response.accessToken, response.user);
         setUser(response.user);
       },
-      async signUp(email, password, username) {
-        await api.post('/auth/register', { email, password, username }, false);
+      async signUp(email, password, username, fullName, phone) {
+        await api.post('/auth/register', { email, password, username, fullName, phone }, false);
       },
       async resetPassword(email) {
         const response = await api.post<ForgotPasswordResponse>('/auth/forgot-password', { email }, false);

@@ -19,10 +19,7 @@ export class UsersService {
           p.username is not null
           and p.email is not null
           and p.full_name is not null
-          and p.birth_date is not null
           and p.phone is not null
-          and p.is_adult_verified = true
-          and exists(select 1 from terms_acceptance ta where ta.user_id = p.id)
         ) as profile_completed
       from profiles p
       left join user_roles ur on ur.user_id = p.id
@@ -38,30 +35,23 @@ export class UsersService {
   async updateProfile(userId: string, email: string | undefined, dto: UpdateProfileDto) {
     const result = await this.db.query(
       `
-      insert into profiles(id, username, email, full_name, birth_date, phone, is_adult_verified)
+      insert into profiles(id, username, email, full_name, phone)
       values (
         $1,
-        coalesce($2, split_part($6, '@', 1)),
-        $6,
-        $3,
-        $4,
+        coalesce($2, split_part($5, '@', 1)),
         $5,
-        case when $4::date is not null then $4::date <= (current_date - interval '18 years') else false end
+        $3,
+        $4
       )
       on conflict (id) do update
       set username = coalesce(excluded.username, profiles.username),
           email = coalesce(excluded.email, profiles.email),
           full_name = coalesce(excluded.full_name, profiles.full_name),
-          birth_date = coalesce(excluded.birth_date, profiles.birth_date),
           phone = coalesce(excluded.phone, profiles.phone),
-          is_adult_verified = case
-            when excluded.birth_date is not null then excluded.birth_date <= (current_date - interval '18 years')
-            else profiles.is_adult_verified
-          end,
           updated_at = now()
       returning *
       `,
-      [userId, dto.username, dto.fullName, dto.birthDate, dto.phone, email ?? `${userId}@local.invalid`],
+      [userId, dto.username, dto.fullName, dto.phone, email ?? `${userId}@local.invalid`],
     );
     return result.rows[0];
   }

@@ -18,7 +18,7 @@ export function MatchesByDateScreen({ navigation, route }: AppScreenProps<'Match
   useEffect(() => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     api
-      .get<Match[]>(`/matches/by-date?date=${date}&timezone=${encodeURIComponent(timezone)}`, false)
+      .get<Match[]>(`/matches/by-date?date=${date}&timezone=${encodeURIComponent(timezone)}`)
       .then(setMatches)
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar partidos.'))
       .finally(() => setLoading(false));

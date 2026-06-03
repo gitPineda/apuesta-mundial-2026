@@ -59,14 +59,16 @@ export class AuthService {
         id,
         username,
         email,
+        full_name,
+        phone,
         password_hash,
         email_confirmation_code,
         email_confirmation_sent_at
       )
-      values (gen_random_uuid(), $1, lower($2), $3, $4, now())
-      returning id, username, email, email_confirmed, created_at
+      values (gen_random_uuid(), $1, lower($2), $3, $4, $5, $6, now())
+      returning id, username, email, full_name, phone, email_confirmed, created_at
       `,
-      [dto.username, dto.email, passwordHash, confirmationCode],
+      [dto.username, dto.email, dto.fullName, dto.phone, passwordHash, confirmationCode],
     );
 
     const user = result.rows[0];

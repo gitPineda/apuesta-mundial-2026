@@ -1,10 +1,10 @@
-import { IsDateString, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
-  @Matches(/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]+$/, {
+  @Matches(/^[A-Za-z\u00C0-\u017F\s]+$/, {
     message: 'El usuario solo puede contener letras y espacios.',
   })
   username?: string;
@@ -12,14 +12,10 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(160)
-  @Matches(/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]+$/, {
+  @Matches(/^[A-Za-z\u00C0-\u017F\s]+$/, {
     message: 'El nombre completo solo puede contener letras y espacios.',
   })
   fullName?: string;
-
-  @IsOptional()
-  @IsDateString()
-  birthDate?: string;
 
   @IsOptional()
   @IsString()

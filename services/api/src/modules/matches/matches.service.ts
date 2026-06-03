@@ -12,7 +12,7 @@ export class MatchesService {
     return result.rows[0] ?? null;
   }
 
-  async findAll(date?: string, timezone = 'America/Guayaquil') {
+  async findAll(date?: string, timezone = 'America/Guayaquil', userId?: string | null) {
     const params: unknown[] = [];
     const where: string[] = [];
 
@@ -42,25 +42,36 @@ export class MatchesService {
         to_char(m.kickoff_local_time_ec, 'HH24:MI') as kickoff_local_time,
         to_char(m.betting_closes_local_date_ec, 'YYYY-MM-DD') as betting_closes_local_date,
         to_char(m.betting_closes_local_time_ec, 'HH24:MI') as betting_closes_local_time,
-        'America/Guayaquil' as display_timezone
+        'America/Guayaquil' as display_timezone,
+        case
+          when bool_or(b.status = 'won') then 'won'
+          when bool_or(b.status = 'lost') then 'lost'
+          else null
+        end as user_bet_result
       from matches m
       left join teams ht on ht.id = m.home_team_id
       left join teams at on at.id = m.away_team_id
       left join venues v on v.id = m.venue_id
       left join match_results mr on mr.match_id = m.id
+      left join betting_markets ubm on ubm.match_id = m.id
+      left join bet_selections ubs on ubs.market_id = ubm.id
+      left join bets b on b.id = ubs.bet_id
+        and b.user_id = $${params.length + 1}
+        and b.status in ('won', 'lost')
       ${where.length ? `where ${where.join(' and ')}` : ''}
+      group by m.id, ht.name, ht.fifa_code, at.name, at.fifa_code, v.name, v.city, v.country, mr.home_score, mr.away_score, mr.is_official, mr.recorded_at
       order by m.kickoff_at asc
       `,
-      params,
+      [...params, userId ?? null],
     );
     return result.rows;
   }
 
-  async findByDate(date: string, timezone?: string) {
-    return this.findAll(date, timezone);
+  async findByDate(date: string, timezone?: string, userId?: string | null) {
+    return this.findAll(date, timezone, userId);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string | null) {
     const result = await this.db.query(
       `
       select
@@ -82,15 +93,26 @@ export class MatchesService {
         to_char(m.kickoff_local_time_ec, 'HH24:MI') as kickoff_local_time,
         to_char(m.betting_closes_local_date_ec, 'YYYY-MM-DD') as betting_closes_local_date,
         to_char(m.betting_closes_local_time_ec, 'HH24:MI') as betting_closes_local_time,
-        'America/Guayaquil' as display_timezone
+        'America/Guayaquil' as display_timezone,
+        case
+          when bool_or(b.status = 'won') then 'won'
+          when bool_or(b.status = 'lost') then 'lost'
+          else null
+        end as user_bet_result
       from matches m
       left join teams ht on ht.id = m.home_team_id
       left join teams at on at.id = m.away_team_id
       left join venues v on v.id = m.venue_id
       left join match_results mr on mr.match_id = m.id
+      left join betting_markets ubm on ubm.match_id = m.id
+      left join bet_selections ubs on ubs.market_id = ubm.id
+      left join bets b on b.id = ubs.bet_id
+        and b.user_id = $2
+        and b.status in ('won', 'lost')
       where m.id = $1
+      group by m.id, ht.name, ht.fifa_code, at.name, at.fifa_code, v.name, v.city, v.country, mr.home_score, mr.away_score, mr.is_official, mr.recorded_at
       `,
-      [id],
+      [id, userId ?? null],
     );
     return result.rows[0] ?? null;
   }

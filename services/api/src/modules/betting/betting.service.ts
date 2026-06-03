@@ -261,9 +261,7 @@ export class BettingService {
       `
       select
         p.status,
-        p.is_adult_verified,
-        p.kyc_status,
-        exists(select 1 from terms_acceptance ta where ta.user_id = p.id) as terms_accepted
+        p.kyc_status
       from profiles p
       where p.id = $1
       `,
@@ -275,12 +273,6 @@ export class BettingService {
     }
     if (profile.status !== 'active') {
       throw new BusinessError('USER_NOT_ACTIVE', 'La cuenta no esta activa.', HttpStatus.FORBIDDEN);
-    }
-    if (!profile.is_adult_verified) {
-      throw new BusinessError('AGE_NOT_VERIFIED', 'Debe verificar que es mayor de edad.', HttpStatus.FORBIDDEN);
-    }
-    if (!profile.terms_accepted) {
-      throw new BusinessError('TERMS_NOT_ACCEPTED', 'Debe aceptar terminos y condiciones.', HttpStatus.FORBIDDEN);
     }
   }
 

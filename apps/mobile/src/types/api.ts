@@ -10,6 +10,7 @@ export interface Match {
   away_score?: number | null;
   result_is_official?: boolean | null;
   result_recorded_at?: string | null;
+  user_bet_result?: 'won' | 'lost' | null;
   is_past_or_finished?: boolean;
   kickoff_local_date?: string;
   kickoff_local_time?: string;
