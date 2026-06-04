@@ -21,7 +21,7 @@ export function HomeScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>MVP demo</Text>
-        <Text style={styles.title}>Mundial FIFA 2026</Text>
+        <Text style={styles.title}>ASERBIESS Mundial 2026</Text>
         <Text style={styles.subtitle}>Calendario, pronosticos y pagos auditables para operar primero en modo demo.</Text>
       </View>
 

@@ -39,7 +39,7 @@ export function LoginScreen({ navigation }: Props) {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Mundial 2026</Text>
+        <Text style={styles.title}>ASERBIESS Mundial 2026</Text>
         <Text style={styles.subtitle}>Predicciones claras, estados auditables y pagos controlados.</Text>
       </View>
 

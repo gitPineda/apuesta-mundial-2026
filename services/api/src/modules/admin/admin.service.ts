@@ -862,7 +862,7 @@ export class AdminService {
       `Marcador oficial: ${officialScore}`,
       reason ? `Motivo: ${reason}` : null,
       '',
-      'Gracias por usar Apuesta Mundial 2026.',
+      'Gracias por usar Apuesta ASERBIESS Mundial 2026.',
     ]
       .filter(Boolean)
       .join('\n');

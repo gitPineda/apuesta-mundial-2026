@@ -34,7 +34,7 @@ export function CalendarScreen() {
       </View>
 
       <DateSection title="Partidos especiales" dates={specialDates} onSelect={(date) => navigation.navigate('MatchesByDate', { date })} />
-      <DateSection title="Mundial FIFA 2026" dates={worldCupDates} onSelect={(date) => navigation.navigate('MatchesByDate', { date })} />
+      <DateSection title="ASERBIESS Mundial 2026" dates={worldCupDates} onSelect={(date) => navigation.navigate('MatchesByDate', { date })} />
     </Screen>
   );
 }

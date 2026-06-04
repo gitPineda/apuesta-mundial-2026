@@ -23,8 +23,8 @@ async function bootstrap() {
   );
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Apuesta Mundial 2026 API')
-    .setDescription('API NestJS para MVP de predicciones/apuestas del Mundial FIFA 2026.')
+    .setTitle('Apuesta ASERBIESS Mundial 2026 API')
+    .setDescription('API NestJS para MVP de predicciones/apuestas del ASERBIESS Mundial 2026.')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();
