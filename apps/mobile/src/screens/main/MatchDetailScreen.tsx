@@ -75,37 +75,46 @@ export function MatchDetailScreen({ navigation, route }: AppScreenProps<'MatchDe
 
       {!isFinal ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>Mercados</Text>
-        <View style={styles.marketMode}>
-          {getAvailableMarketTypes(markets).map((mode) => (
-            <RadioOption
-              key={mode.type}
-              label={mode.label}
-              selected={selectedMarketType === mode.type}
-              onPress={() => setSelectedMarketType(mode.type)}
-            />
-          ))}
+        <View style={styles.marketOptions}>
+          {getAvailableMarketTypes(markets).map((mode) => {
+            const modeMarkets = markets.filter((market) => market.type === mode.type);
+
+            return (
+              <View key={mode.type} style={styles.marketOptionBlock}>
+                <RadioOption
+                  label={mode.label}
+                  selected={selectedMarketType === mode.type}
+                  onPress={() => setSelectedMarketType(mode.type)}
+                />
+                {selectedMarketType === mode.type ? (
+                  <View style={styles.selectedMarketContent}>
+                    {modeMarkets.map((market) => (
+                      <MarketCard
+                        key={market.id}
+                        market={market}
+                        match={match}
+                        selectedScore={selectedScores[market.id] ?? { home: 0, away: 0 }}
+                        onScoreChange={(value) =>
+                          setSelectedScores((current) => ({ ...current, [market.id]: value }))
+                        }
+                        onSelectOdd={(odd) =>
+                          navigation.navigate('CreateBet', {
+                            matchId: match.id,
+                            oddsId: odd.id,
+                            selectionLabel: odd.selectionLabel,
+                          })
+                        }
+                      />
+                    ))}
+                    {modeMarkets.length === 0 ? (
+                      <Text style={styles.emptyMarket}>No hay cuotas disponibles para esta opcion.</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
-        {markets.filter((market) => market.type === selectedMarketType).map((market) => (
-          <MarketCard
-            key={market.id}
-            market={market}
-            match={match}
-            selectedScore={selectedScores[market.id] ?? { home: 0, away: 0 }}
-            onScoreChange={(value) =>
-              setSelectedScores((current) => ({ ...current, [market.id]: value }))
-            }
-            onSelectOdd={(odd) =>
-              navigation.navigate('CreateBet', {
-                matchId: match.id,
-                oddsId: odd.id,
-                selectionLabel: odd.selectionLabel,
-              })
-            }
-          />
-        ))}
-        {markets.filter((market) => market.type === selectedMarketType).length === 0 ? (
-          <Text style={styles.emptyMarket}>No hay cuotas disponibles para esta opcion.</Text>
-        ) : null}
       </View> : null}
     </Screen>
   );
@@ -275,7 +284,13 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.text,
   },
-  marketMode: {
+  marketOptions: {
+    gap: spacing.sm,
+  },
+  marketOptionBlock: {
+    gap: spacing.sm,
+  },
+  selectedMarketContent: {
     gap: spacing.sm,
   },
   radioOption: {
