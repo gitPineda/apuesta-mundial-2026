@@ -18,7 +18,7 @@ export function CalendarScreen() {
 
   useEffect(() => {
     api
-      .get<MatchDateSummary[]>('/matches/available-dates', false)
+      .get<MatchDateSummary[]>('/calendar/match-dates', false)
       .then(setDates)
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el calendario.'))
       .finally(() => setLoading(false));

@@ -36,7 +36,7 @@ export class MatchesController {
     return this.matches.findByDate(date, timezone, userId);
   }
 
-  @Get('matches/available-dates')
+  @Get('calendar/match-dates')
   findAvailableDates() {
     return this.matches.findAvailableDates();
   }
