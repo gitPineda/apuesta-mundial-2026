@@ -36,6 +36,11 @@ export class MatchesController {
     return this.matches.findByDate(date, timezone, userId);
   }
 
+  @Get('matches/available-dates')
+  findAvailableDates() {
+    return this.matches.findAvailableDates();
+  }
+
   @Get('matches/:id')
   async findOne(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const userId = await this.getOptionalUserId(authorization);

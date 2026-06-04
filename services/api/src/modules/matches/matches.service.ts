@@ -12,6 +12,22 @@ export class MatchesService {
     return result.rows[0] ?? null;
   }
 
+  async findAvailableDates() {
+    const result = await this.db.query(
+      `
+      select
+        to_char(m.kickoff_local_date_ec, 'YYYY-MM-DD') as date,
+        count(*)::int as match_count,
+        bool_or(m.betting_enabled and m.status = 'scheduled') as has_openable_matches
+      from matches m
+      where m.kickoff_local_date_ec is not null
+      group by m.kickoff_local_date_ec
+      order by m.kickoff_local_date_ec asc
+      `,
+    );
+    return result.rows;
+  }
+
   async findAll(date?: string, timezone = 'America/Guayaquil', userId?: string | null) {
     const params: unknown[] = [];
     const where: string[] = [];

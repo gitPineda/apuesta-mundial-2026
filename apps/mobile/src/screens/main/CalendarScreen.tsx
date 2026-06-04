@@ -1,30 +1,28 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../../components/Screen';
 import { AppStackParamList } from '../../navigation/types';
+import { api } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
-
-function buildDateRange(start: string, end: string) {
-  const dates: string[] = [];
-  const current = new Date(`${start}T12:00:00Z`);
-  const last = new Date(`${end}T12:00:00Z`);
-
-  while (current <= last) {
-    dates.push(current.toISOString().slice(0, 10));
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-
-  return dates;
-}
-
-const specialDates = ['2026-05-30'];
-const worldCupDates = buildDateRange('2026-06-11', '2026-06-27');
+import { MatchDateSummary } from '../../types/api';
 
 export function CalendarScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const [dates, setDates] = useState<MatchDateSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api
+      .get<MatchDateSummary[]>('/matches/available-dates', false)
+      .then(setDates)
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el calendario.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <Screen>
@@ -33,30 +31,51 @@ export function CalendarScreen() {
         <Text style={styles.subtitle}>Partidos disponibles para apostar. Horarios en Ecuador.</Text>
       </View>
 
-      <DateSection title="Partidos especiales" dates={specialDates} onSelect={(date) => navigation.navigate('MatchesByDate', { date })} />
-      <DateSection title="ASERBIESS Mundial 2026" dates={worldCupDates} onSelect={(date) => navigation.navigate('MatchesByDate', { date })} />
+      {loading ? <ActivityIndicator color={colors.primary} /> : null}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {!loading && !error && dates.length === 0 ? (
+        <Text style={styles.empty}>No hay fechas con partidos cargados.</Text>
+      ) : null}
+
+      {!loading && !error && dates.length > 0 ? (
+        <DateSection
+          title="Fechas con partidos"
+          dates={dates}
+          onSelect={(date) => navigation.navigate('MatchesByDate', { date })}
+        />
+      ) : null}
     </Screen>
   );
 }
 
-function DateSection({ title, dates, onSelect }: { title: string; dates: string[]; onSelect: (date: string) => void }) {
+function DateSection({
+  title,
+  dates,
+  onSelect,
+}: {
+  title: string;
+  dates: MatchDateSummary[];
+  onSelect: (date: string) => void;
+}) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <View style={styles.list}>
-        {dates.map((date) => {
-          const itemDate = new Date(`${date}T12:00:00Z`);
+        {dates.map((item) => {
+          const itemDate = new Date(`${item.date}T12:00:00Z`);
           return (
             <Pressable
-              key={date}
+              key={item.date}
               style={styles.dateRow}
-              onPress={() => onSelect(date)}
+              onPress={() => onSelect(item.date)}
             >
               <View>
                 <Text style={styles.dateTitle}>
                   {itemDate.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
                 </Text>
-                <Text style={styles.dateText}>{date}</Text>
+                <Text style={styles.dateText}>
+                  {item.date} - {item.match_count} {item.match_count === 1 ? 'partido' : 'partidos'}
+                </Text>
               </View>
               <Text style={styles.arrow}>Ver</Text>
             </Pressable>
@@ -115,5 +134,11 @@ const styles = StyleSheet.create({
   arrow: {
     color: colors.primary,
     fontWeight: '800',
+  },
+  error: {
+    color: colors.danger,
+  },
+  empty: {
+    color: colors.textMuted,
   },
 });

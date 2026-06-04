@@ -27,6 +27,12 @@ export interface Match {
   accepts_bets: boolean;
 }
 
+export interface MatchDateSummary {
+  date: string;
+  match_count: number;
+  has_openable_matches: boolean;
+}
+
 export interface Odd {
   id: string;
   selectionKey: string;
