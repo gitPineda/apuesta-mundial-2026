@@ -6,13 +6,14 @@ const REQUEST_TIMEOUT_MS = 30000;
 
 type ApiOptions = RequestInit & {
   auth?: boolean;
+  timeoutMs?: number;
 };
 
 export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const requestId = createRequestId();
   const startedAt = Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? REQUEST_TIMEOUT_MS);
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
   headers.set('X-Request-Id', requestId);
@@ -51,7 +52,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   } catch (error) {
     const message =
       error instanceof Error && error.name === 'AbortError'
-        ? 'La solicitud tardo demasiado. Verifica tu conexion e intenta nuevamente.'
+        ? 'La conexion con el servidor tardo demasiado. Si el servidor estuvo inactivo, intenta nuevamente en unos segundos.'
         : error instanceof Error
           ? error.message
           : 'No se pudo completar la solicitud.';
@@ -63,12 +64,14 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
 }
 
 export const api = {
-  get: <T>(path: string, auth = true) => apiRequest<T>(path, { method: 'GET', auth }),
-  post: <T>(path: string, body?: unknown, auth = true) =>
+  get: <T>(path: string, auth = true, timeoutMs?: number) =>
+    apiRequest<T>(path, { method: 'GET', auth, timeoutMs }),
+  post: <T>(path: string, body?: unknown, auth = true, timeoutMs?: number) =>
     apiRequest<T>(path, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
       auth,
+      timeoutMs,
     }),
   patch: <T>(path: string, body?: unknown) =>
     apiRequest<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),

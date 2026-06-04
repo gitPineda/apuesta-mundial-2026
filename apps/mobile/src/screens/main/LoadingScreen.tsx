@@ -1,11 +1,15 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../theme/colors';
 
-export function LoadingScreen() {
+interface LoadingScreenProps {
+  message?: string;
+}
+
+export function LoadingScreen({ message = 'Preparando la app' }: LoadingScreenProps) {
   return (
     <View style={styles.container}>
       <ActivityIndicator color={colors.primary} size="large" />
-      <Text style={styles.text}>Preparando la app</Text>
+      <Text style={styles.text}>{message}</Text>
     </View>
   );
 }

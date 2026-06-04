@@ -24,6 +24,7 @@ export function AppVersionGate({ children }: PropsWithChildren) {
       const result = await api.get<AppVersionCheckResponse>(
         `/app-version/check?platform=${encodeURIComponent(APP_PLATFORM)}`,
         false,
+        90000,
       );
       if (result.supported) {
         setState({ status: 'supported' });
@@ -54,7 +55,7 @@ export function AppVersionGate({ children }: PropsWithChildren) {
 
   return (
     <>
-      <LoadingScreen />
+      <LoadingScreen message="Conectando con el servidor. Puede tardar si estuvo inactivo." />
       <AppPopup
         visible={state.status === 'obsolete'}
         title="Actualizacion requerida"
