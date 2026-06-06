@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { BusinessError } from '../../common/errors/business-error';
 import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
+import { BettingService } from '../betting/betting.service';
 import { CreateBankTransferDto } from './dto/create-bank-transfer.dto';
 import { InitiatePayphoneDto } from './dto/initiate-payphone.dto';
 
@@ -10,13 +11,21 @@ export class PaymentsService {
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly betting: BettingService,
   ) {}
 
   async createBankTransfer(userId: string, dto: CreateBankTransferDto) {
     const transferNumber = dto.transferNumber.trim();
     return this.db.transaction(async (client) => {
+      await this.betting.expireStalePendingBetsForUser(userId, client);
       const betResult = await client.query(
-        `select * from bets where id = $1 and user_id = $2 for update`,
+        `
+        select b.*
+        from bets b
+        where b.id = $1
+          and b.user_id = $2
+        for update
+        `,
         [dto.betId, userId],
       );
       const bet = betResult.rows[0];
@@ -24,7 +33,40 @@ export class PaymentsService {
         throw new BusinessError('BET_NOT_FOUND', 'La apuesta no existe.', HttpStatus.NOT_FOUND);
       }
       if (bet.status !== 'pending_payment') {
-        throw new BusinessError('BET_NOT_PAYABLE', 'La apuesta no esta pendiente de pago.');
+        throw new BusinessError(
+          'BET_NOT_PAYABLE',
+          'La apuesta no esta pendiente de pago o ya expiro el tiempo permitido para completarla.',
+        );
+      }
+      const openWindow = await client.query(
+        `
+        select 1
+        from bet_selections bs
+        join matches m on m.id = bs.match_id
+        where bs.bet_id = $1
+          and m.betting_closes_at > now()
+          and m.betting_enabled
+          and m.status = 'scheduled'
+        limit 1
+        `,
+        [bet.id],
+      );
+      if (!openWindow.rows[0]) {
+        await client.query(
+          `
+          update bets
+          set status = 'void',
+              payment_status = 'failed',
+              settled_at = now()
+          where id = $1
+          `,
+          [bet.id],
+        );
+        await client.query(`update bet_selections set status = 'void' where bet_id = $1`, [bet.id]);
+        throw new BusinessError(
+          'BET_PAYMENT_WINDOW_CLOSED',
+          'Ya finalizo el tiempo permitido para completar esta apuesta.',
+        );
       }
 
       const accountResult = await client.query(

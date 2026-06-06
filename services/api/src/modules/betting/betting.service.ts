@@ -192,6 +192,7 @@ export class BettingService {
   }
 
   async findUserBets(userId: string) {
+    await this.expireStalePendingBetsForUser(userId);
     const result = await this.db.query(
       `
       select
@@ -235,6 +236,7 @@ export class BettingService {
   }
 
   async findUserBet(userId: string, betId: string) {
+    await this.expireStalePendingBetsForUser(userId);
     const result = await this.db.query(
       `
       select
@@ -274,6 +276,42 @@ export class BettingService {
       [userId, betId],
     );
     return result.rows[0] ?? null;
+  }
+
+  async expireStalePendingBetsForUser(userId: string, client?: PoolClient) {
+    const query = client ? client.query.bind(client) : this.db.query.bind(this.db);
+    const expired = await query<{ id: string }>(
+      `
+      with expired_bets as (
+        select distinct b.id
+        from bets b
+        join bet_selections bs on bs.bet_id = b.id
+        join matches m on m.id = bs.match_id
+        where b.user_id = $1
+          and b.status = 'pending_payment'
+          and (
+            m.betting_closes_at <= now()
+            or b.created_at::date < current_date
+          )
+      ),
+      updated_bets as (
+        update bets b
+        set status = 'void',
+            payment_status = 'failed',
+            settled_at = now()
+        from expired_bets eb
+        where b.id = eb.id
+        returning b.id
+      )
+      update bet_selections bs
+      set status = 'void'
+      from updated_bets ub
+      where bs.bet_id = ub.id
+      returning ub.id
+      `,
+      [userId],
+    );
+    return [...new Set(expired.rows.map((row) => row.id))];
   }
 
   private async validateUserCanBet(userId: string) {

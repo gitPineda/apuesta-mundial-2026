@@ -103,6 +103,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       },
       refreshProfile,
       async signOut() {
+        try {
+          await api.post('/auth/logout');
+        } catch (error) {
+          console.log(
+            `[auth] logout.remote.failed ${error instanceof Error ? error.message : 'unknown'}`,
+          );
+        }
         await clearSession();
         setUser(null);
         setProfile(null);

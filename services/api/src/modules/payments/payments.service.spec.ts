@@ -3,7 +3,7 @@ import { PaymentsService } from './payments.service';
 
 describe('PaymentsService', () => {
   it('keeps PayPhone disabled until implementation is enabled', async () => {
-    const service = new PaymentsService({} as any, {} as any);
+    const service = new PaymentsService({} as any, {} as any, {} as any);
 
     await expect(
       service.initiatePayphone('user-id', {

@@ -2,7 +2,7 @@ import { ConflictException, Injectable, Logger, UnauthorizedException } from '@n
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../database/database.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -14,6 +14,7 @@ interface AppJwtPayload {
   sub: string;
   email: string;
   roles: string[];
+  sid: string;
 }
 
 @Injectable()
@@ -97,16 +98,36 @@ export class AuthService {
     }
 
     const roles = await this.getRoles(user.id);
+    if (user.active_session_id && new Date(user.active_session_expires_at).getTime() > Date.now()) {
+      throw new ConflictException(
+        'Ya existe una sesion activa para este usuario. Cierra la sesion anterior antes de ingresar en otro dispositivo.',
+      );
+    }
+
+    const sessionId = randomUUID();
+    const expiresIn = this.config.get<string>('JWT_EXPIRES_IN', '7d');
+    await this.db.query(
+      `
+      update profiles
+      set active_session_id = $2,
+          active_session_started_at = now(),
+          active_session_expires_at = now() + $3::interval
+      where id = $1
+      `,
+      [user.id, sessionId, this.toPostgresInterval(expiresIn)],
+    );
+
     const accessToken = await this.signToken({
       sub: user.id,
       email: user.email,
       roles,
+      sid: sessionId,
     });
 
     return {
       accessToken,
       tokenType: 'Bearer',
-      expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '7d'),
+      expiresIn,
       user: {
         id: user.id,
         username: user.username,
@@ -114,6 +135,25 @@ export class AuthService {
         roles,
       },
     };
+  }
+
+  async logout(userId: string, sessionId?: string) {
+    if (!sessionId) {
+      return { message: 'Sesion cerrada.' };
+    }
+
+    await this.db.query(
+      `
+      update profiles
+      set active_session_id = null,
+          active_session_started_at = null,
+          active_session_expires_at = null
+      where id = $1
+        and active_session_id = $2
+      `,
+      [userId, sessionId],
+    );
+    return { message: 'Sesion cerrada.' };
   }
 
   async forgotPassword(dto: ForgotPasswordDto, requestId = this.createRequestId()) {
@@ -207,10 +247,35 @@ export class AuthService {
 
     try {
       const payload = await this.jwt.verifyAsync<AppJwtPayload>(token, { secret });
+      if (!payload.sid) {
+        throw new UnauthorizedException('Sesion invalida.');
+      }
+      const session = await this.db.query(
+        `
+        select active_session_id, active_session_expires_at
+        from profiles
+        where id = $1
+          and status = 'active'
+        limit 1
+        `,
+        [payload.sub],
+      );
+      const profile = session.rows[0];
+      if (
+        !profile ||
+        profile.active_session_id !== payload.sid ||
+        !profile.active_session_expires_at ||
+        new Date(profile.active_session_expires_at).getTime() <= Date.now()
+      ) {
+        throw new UnauthorizedException(
+          'Tu sesion ya no esta activa o fue abierta en otro dispositivo. Ingresa nuevamente.',
+        );
+      }
       return {
         id: payload.sub,
         email: payload.email,
         roles: payload.roles?.length ? payload.roles : ['user'],
+        sessionId: payload.sid,
       };
     } catch {
       throw new UnauthorizedException('Invalid token');
@@ -227,6 +292,23 @@ export class AuthService {
       secret,
       expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '7d'),
     });
+  }
+
+  private toPostgresInterval(value: string) {
+    const match = value.trim().match(/^(\d+)\s*([smhd])$/i);
+    if (!match) {
+      return value;
+    }
+
+    const amount = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    const units: Record<string, string> = {
+      s: 'seconds',
+      m: 'minutes',
+      h: 'hours',
+      d: 'days',
+    };
+    return `${amount} ${units[unit]}`;
   }
 
   private async assignDefaultRole(userId: string) {
