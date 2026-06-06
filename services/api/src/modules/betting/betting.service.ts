@@ -63,6 +63,11 @@ export class BettingService {
         dto.selections.map((s) => s.oddsId),
         client,
       );
+      await this.lockUserMatchBetCreation(
+        userId,
+        selections.map((selection) => selection.match_id),
+        client,
+      );
       await this.validateNoExistingBetForMatches(
         userId,
         selections.map((selection) => selection.match_id),
@@ -140,6 +145,21 @@ export class BettingService {
 
       return bet;
     });
+  }
+
+  private async lockUserMatchBetCreation(
+    userId: string,
+    matchIds: string[],
+    client: PoolClient,
+  ) {
+    const uniqueMatchIds = [...new Set(matchIds)].sort();
+
+    for (const matchId of uniqueMatchIds) {
+      await client.query(
+        `select pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+        [userId, matchId],
+      );
+    }
   }
 
   private async validateNoExistingBetForMatches(
