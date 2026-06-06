@@ -15,6 +15,8 @@ interface SelectionRow {
   odds_status: string;
   market_status: string;
   line_value: string | null;
+  home_team_id: string | null;
+  away_team_id: string | null;
   kickoff_at: Date;
   betting_closes_at: Date;
   betting_enabled: boolean;
@@ -394,6 +396,8 @@ export class BettingService {
         o.status as odds_status,
         bm.status as market_status,
         bm.line_value,
+        m.home_team_id,
+        m.away_team_id,
         m.kickoff_at,
         m.betting_closes_at,
         m.betting_enabled,
@@ -412,6 +416,12 @@ export class BettingService {
     }
 
     for (const selection of result.rows) {
+      if (!selection.home_team_id || !selection.away_team_id) {
+        throw new BusinessError(
+          'MATCH_TEAMS_REQUIRED',
+          'Este partido todavia no tiene equipos definidos y no acepta apuestas.',
+        );
+      }
       if (!selection.betting_enabled || selection.match_status !== 'scheduled') {
         throw new BusinessError('BETTING_CLOSED', 'Ya no se aceptan apuestas para este partido.');
       }

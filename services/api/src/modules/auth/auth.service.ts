@@ -1,4 +1,11 @@
-import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -83,17 +90,38 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const email = dto.email.trim().toLowerCase();
+    await this.assertRateLimit(
+      'login',
+      email,
+      Number(this.config.get<string>('AUTH_LOGIN_MAX_ATTEMPTS', '5')),
+      Number(this.config.get<string>('AUTH_LOGIN_WINDOW_MINUTES', '15')),
+    );
     const result = await this.db.query(
       `select * from profiles where lower(email) = lower($1) limit 1`,
-      [dto.email],
+      [email],
     );
     const user = result.rows[0];
     if (!user?.password_hash) {
+      await this.recordRateLimitAttempt(
+        'login',
+        email,
+        Number(this.config.get<string>('AUTH_LOGIN_MAX_ATTEMPTS', '5')),
+        Number(this.config.get<string>('AUTH_LOGIN_WINDOW_MINUTES', '15')),
+        Number(this.config.get<string>('AUTH_LOGIN_BLOCK_MINUTES', '15')),
+      );
       throw new UnauthorizedException('Credenciales invalidas.');
     }
 
     const validPassword = await bcrypt.compare(dto.password, user.password_hash);
     if (!validPassword) {
+      await this.recordRateLimitAttempt(
+        'login',
+        email,
+        Number(this.config.get<string>('AUTH_LOGIN_MAX_ATTEMPTS', '5')),
+        Number(this.config.get<string>('AUTH_LOGIN_WINDOW_MINUTES', '15')),
+        Number(this.config.get<string>('AUTH_LOGIN_BLOCK_MINUTES', '15')),
+      );
       throw new UnauthorizedException('Credenciales invalidas.');
     }
 
@@ -116,6 +144,7 @@ export class AuthService {
       `,
       [user.id, sessionId, this.toPostgresInterval(expiresIn)],
     );
+    await this.clearRateLimit('login', email);
 
     const accessToken = await this.signToken({
       sub: user.id,
@@ -159,6 +188,19 @@ export class AuthService {
   async forgotPassword(dto: ForgotPasswordDto, requestId = this.createRequestId()) {
     const startedAt = Date.now();
     const email = dto.email.trim().toLowerCase();
+    await this.assertRateLimit(
+      'forgot_password',
+      email,
+      Number(this.config.get<string>('AUTH_FORGOT_PASSWORD_MAX_REQUESTS', '3')),
+      Number(this.config.get<string>('AUTH_FORGOT_PASSWORD_WINDOW_MINUTES', '15')),
+    );
+    await this.recordRateLimitAttempt(
+      'forgot_password',
+      email,
+      Number(this.config.get<string>('AUTH_FORGOT_PASSWORD_MAX_REQUESTS', '3')),
+      Number(this.config.get<string>('AUTH_FORGOT_PASSWORD_WINDOW_MINUTES', '15')),
+      Number(this.config.get<string>('AUTH_FORGOT_PASSWORD_BLOCK_MINUTES', '15')),
+    );
     this.logger.log(
       `[${requestId}] auth.forgotPassword.start email=${this.maskEmail(email)}`,
     );
@@ -204,6 +246,13 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
+    const email = dto.email.trim().toLowerCase();
+    await this.assertRateLimit(
+      'reset_password',
+      email,
+      Number(this.config.get<string>('AUTH_RESET_PASSWORD_MAX_ATTEMPTS', '5')),
+      Number(this.config.get<string>('AUTH_RESET_PASSWORD_WINDOW_MINUTES', '15')),
+    );
     const result = await this.db.query(
       `
       select id, password_reset_code, password_reset_expires_at, password_reset_attempts
@@ -211,7 +260,7 @@ export class AuthService {
       where lower(email) = lower($1)
       limit 1
       `,
-      [dto.email],
+      [email],
     );
     const user = result.rows[0];
     if (
@@ -220,6 +269,23 @@ export class AuthService {
       new Date(user.password_reset_expires_at).getTime() < Date.now() ||
       Number(user.password_reset_attempts) >= Number(this.config.get<string>('PASSWORD_RESET_MAX_ATTEMPTS', '5'))
     ) {
+      await this.recordRateLimitAttempt(
+        'reset_password',
+        email,
+        Number(this.config.get<string>('AUTH_RESET_PASSWORD_MAX_ATTEMPTS', '5')),
+        Number(this.config.get<string>('AUTH_RESET_PASSWORD_WINDOW_MINUTES', '15')),
+        Number(this.config.get<string>('AUTH_RESET_PASSWORD_BLOCK_MINUTES', '15')),
+      );
+      if (user) {
+        await this.db.query(
+          `
+          update profiles
+          set password_reset_attempts = password_reset_attempts + 1
+          where id = $1
+          `,
+          [user.id],
+        );
+      }
       throw new UnauthorizedException('Codigo invalido o expirado.');
     }
 
@@ -230,11 +296,15 @@ export class AuthService {
       set password_hash = $2,
           password_reset_code = null,
           password_reset_expires_at = null,
-          password_reset_attempts = 0
+          password_reset_attempts = 0,
+          active_session_id = null,
+          active_session_started_at = null,
+          active_session_expires_at = null
       where id = $1
       `,
       [user.id, passwordHash],
     );
+    await this.clearRateLimit('reset_password', email);
 
     return { message: 'Clave actualizada.' };
   }
@@ -309,6 +379,80 @@ export class AuthService {
       d: 'days',
     };
     return `${amount} ${units[unit]}`;
+  }
+
+  private async assertRateLimit(
+    type: string,
+    key: string,
+    maxAttempts: number,
+    windowMinutes: number,
+  ) {
+    const result = await this.db.query(
+      `
+      select attempts, window_started_at, blocked_until
+      from auth_rate_limits
+      where type = $1 and key = $2
+      limit 1
+      `,
+      [type, key],
+    );
+    const row = result.rows[0];
+    if (!row) return;
+
+    if (row.blocked_until && new Date(row.blocked_until).getTime() > Date.now()) {
+      throw new HttpException(
+        'Demasiados intentos. Espera unos minutos antes de volver a intentar.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const windowStartedAt = new Date(row.window_started_at).getTime();
+    const windowMs = windowMinutes * 60 * 1000;
+    if (Date.now() - windowStartedAt <= windowMs && Number(row.attempts) >= maxAttempts) {
+      throw new HttpException(
+        'Demasiados intentos. Espera unos minutos antes de volver a intentar.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private async recordRateLimitAttempt(
+    type: string,
+    key: string,
+    maxAttempts: number,
+    windowMinutes: number,
+    blockMinutes: number,
+  ) {
+    await this.db.query(
+      `
+      insert into auth_rate_limits(type, key, attempts, window_started_at, blocked_until)
+      values ($1, $2, 1, now(), null)
+      on conflict (type, key) do update
+      set attempts = case
+            when auth_rate_limits.window_started_at < now() - ($3 || ' minutes')::interval then 1
+            else auth_rate_limits.attempts + 1
+          end,
+          window_started_at = case
+            when auth_rate_limits.window_started_at < now() - ($3 || ' minutes')::interval then now()
+            else auth_rate_limits.window_started_at
+          end,
+          blocked_until = case
+            when (
+              case
+                when auth_rate_limits.window_started_at < now() - ($3 || ' minutes')::interval then 1
+                else auth_rate_limits.attempts + 1
+              end
+            ) >= $4 then now() + ($5 || ' minutes')::interval
+            else auth_rate_limits.blocked_until
+          end,
+          updated_at = now()
+      `,
+      [type, key, windowMinutes, maxAttempts, blockMinutes],
+    );
+  }
+
+  private async clearRateLimit(type: string, key: string) {
+    await this.db.query(`delete from auth_rate_limits where type = $1 and key = $2`, [type, key]);
   }
 
   private async assignDefaultRole(userId: string) {
