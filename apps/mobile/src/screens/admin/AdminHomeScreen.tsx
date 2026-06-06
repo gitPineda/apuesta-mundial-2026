@@ -17,6 +17,7 @@ const sections: Array<{ title: string; description: string; route: keyof AppStac
   { title: 'Resultados', description: 'Registrar marcador oficial por partido.', route: 'AdminResults' },
   { title: 'Reportes', description: 'Resumen financiero y operativo.', route: 'AdminReports' },
   { title: 'Configuracion', description: 'Comisiones de app y operacion.', route: 'AdminSettings' },
+  { title: 'Sesiones', description: 'Cerrar sesiones activas de usuarios.', route: 'AdminSessions' },
   { title: 'Cuentas bancarias', description: 'Datos donde se reciben transferencias.', route: 'AdminBankAccounts' },
 ];
 

@@ -48,6 +48,18 @@ export class AdminController {
     return this.admin.pendingTransfers();
   }
 
+  @Get('users/sessions')
+  @Roles(Role.Admin)
+  activeUserSessions() {
+    return this.admin.activeUserSessions();
+  }
+
+  @Post('users/:id/logout')
+  @Roles(Role.Admin)
+  forceUserLogout(@CurrentUser() user: CurrentUser, @Param('id') id: string) {
+    return this.admin.forceUserLogout(user.id, id);
+  }
+
   @Post('matches')
   @Roles(Role.Admin)
   createMatch(@CurrentUser() user: CurrentUser, @Body() dto: CreateMatchDto) {

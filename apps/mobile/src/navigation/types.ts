@@ -29,6 +29,7 @@ export type AppStackParamList = {
   AdminResults: undefined;
   AdminReports: undefined;
   AdminSettings: undefined;
+  AdminSessions: undefined;
   AdminBankAccounts: undefined;
 };
 

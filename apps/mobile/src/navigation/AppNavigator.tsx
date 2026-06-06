@@ -9,6 +9,7 @@ import { AdminOddsScreen } from '../screens/admin/AdminOddsScreen';
 import { AdminReportsScreen } from '../screens/admin/AdminReportsScreen';
 import { AdminResultsScreen } from '../screens/admin/AdminResultsScreen';
 import { AdminSettingsScreen } from '../screens/admin/AdminSettingsScreen';
+import { AdminSessionsScreen } from '../screens/admin/AdminSessionsScreen';
 import { AdminTransfersScreen } from '../screens/admin/AdminTransfersScreen';
 import { CreateBetScreen } from '../screens/betting/CreateBetScreen';
 import { PaymentScreen } from '../screens/betting/PaymentScreen';
@@ -104,6 +105,7 @@ export function AppNavigator() {
       <Stack.Screen name="AdminResults" component={AdminResultsScreen} options={{ title: 'Resultados' }} />
       <Stack.Screen name="AdminReports" component={AdminReportsScreen} options={{ title: 'Reportes' }} />
       <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} options={{ title: 'Configuracion' }} />
+      <Stack.Screen name="AdminSessions" component={AdminSessionsScreen} options={{ title: 'Sesiones' }} />
       <Stack.Screen name="AdminBankAccounts" component={AdminBankAccountsScreen} options={{ title: 'Cuentas bancarias' }} />
     </Stack.Navigator>
   );

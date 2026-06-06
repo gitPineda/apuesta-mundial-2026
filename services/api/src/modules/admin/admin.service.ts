@@ -107,6 +107,72 @@ export class AdminService {
     return result.rows;
   }
 
+  async activeUserSessions() {
+    const result = await this.db.query(
+      `
+      select
+        p.id,
+        p.username,
+        p.email,
+        p.full_name,
+        p.active_session_started_at,
+        p.active_session_expires_at,
+        array_agg(r.name order by r.name) filter (where r.name is not null) as roles
+      from profiles p
+      left join user_roles ur on ur.user_id = p.id
+      left join roles r on r.id = ur.role_id
+      where p.active_session_id is not null
+        and p.active_session_expires_at > now()
+      group by p.id
+      order by p.active_session_started_at desc
+      `,
+    );
+    return result.rows;
+  }
+
+  async forceUserLogout(adminId: string, userId: string) {
+    const before = await this.db.query(
+      `
+      select id, username, email, active_session_id, active_session_started_at, active_session_expires_at
+      from profiles
+      where id = $1
+      `,
+      [userId],
+    );
+    const profile = before.rows[0];
+    if (!profile) {
+      throw new BusinessError('USER_NOT_FOUND', 'Usuario no encontrado.', HttpStatus.NOT_FOUND);
+    }
+
+    await this.db.query(
+      `
+      update profiles
+      set active_session_id = null,
+          active_session_started_at = null,
+          active_session_expires_at = null
+      where id = $1
+      `,
+      [userId],
+    );
+
+    await this.audit.log({
+      actorUserId: adminId,
+      actorRole: 'admin',
+      action: 'user.session.force_logout',
+      entityType: 'profiles',
+      entityId: userId,
+      beforeData: {
+        id: profile.id,
+        username: profile.username,
+        email: profile.email,
+        activeSessionStartedAt: profile.active_session_started_at,
+        activeSessionExpiresAt: profile.active_session_expires_at,
+      },
+    });
+
+    return { loggedOut: true };
+  }
+
   async createMatch(adminId: string, dto: CreateMatchDto) {
     const homeCode = dto.homeTeamCode.trim().toUpperCase();
     const awayCode = dto.awayTeamCode.trim().toUpperCase();
@@ -331,6 +397,27 @@ export class AdminService {
       }
       if (receipt.admin_status !== 'pending_review') {
         throw new BusinessError('TRANSFER_ALREADY_REVIEWED', 'La transferencia ya fue revisada.');
+      }
+      const windowResult = await client.query(
+        `
+        select
+          min(m.betting_closes_at) as betting_closes_at,
+          bool_and(btr.created_at <= m.betting_closes_at) as receipt_created_before_close
+        from bank_transfer_receipts btr
+        join payments p on p.id = btr.payment_id
+        join bets b on b.id = p.bet_id
+        join bet_selections bs on bs.bet_id = b.id
+        join matches m on m.id = bs.match_id
+        where btr.id = $1
+        `,
+        [receiptId],
+      );
+      const window = windowResult.rows[0];
+      if (!window?.receipt_created_before_close) {
+        throw new BusinessError(
+          'TRANSFER_AFTER_BETTING_CLOSE',
+          'No se puede aprobar la transferencia porque fue registrada despues del cierre de apuestas.',
+        );
       }
 
       await client.query(

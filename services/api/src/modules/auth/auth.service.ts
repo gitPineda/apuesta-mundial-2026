@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { randomInt, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../database/database.service';
+import { AuditService } from '../audit/audit.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -33,6 +34,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly db: DatabaseService,
     private readonly mail: SmtpMailService,
+    private readonly audit: AuditService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -110,6 +112,7 @@ export class AuthService {
         Number(this.config.get<string>('AUTH_LOGIN_WINDOW_MINUTES', '15')),
         Number(this.config.get<string>('AUTH_LOGIN_BLOCK_MINUTES', '15')),
       );
+      await this.logSecurityEvent('auth.login.failed', 'login', email, { reason: 'user_not_found_or_no_password' });
       throw new UnauthorizedException('Credenciales invalidas.');
     }
 
@@ -122,6 +125,7 @@ export class AuthService {
         Number(this.config.get<string>('AUTH_LOGIN_WINDOW_MINUTES', '15')),
         Number(this.config.get<string>('AUTH_LOGIN_BLOCK_MINUTES', '15')),
       );
+      await this.logSecurityEvent('auth.login.failed', 'login', email, { reason: 'invalid_password', userId: user.id });
       throw new UnauthorizedException('Credenciales invalidas.');
     }
 
@@ -201,6 +205,7 @@ export class AuthService {
       Number(this.config.get<string>('AUTH_FORGOT_PASSWORD_WINDOW_MINUTES', '15')),
       Number(this.config.get<string>('AUTH_FORGOT_PASSWORD_BLOCK_MINUTES', '15')),
     );
+    await this.logSecurityEvent('auth.forgot_password.requested', 'forgot_password', email);
     this.logger.log(
       `[${requestId}] auth.forgotPassword.start email=${this.maskEmail(email)}`,
     );
@@ -276,6 +281,10 @@ export class AuthService {
         Number(this.config.get<string>('AUTH_RESET_PASSWORD_WINDOW_MINUTES', '15')),
         Number(this.config.get<string>('AUTH_RESET_PASSWORD_BLOCK_MINUTES', '15')),
       );
+      await this.logSecurityEvent('auth.reset_password.failed', 'reset_password', email, {
+        reason: 'invalid_or_expired_code',
+        userId: user?.id,
+      });
       if (user) {
         await this.db.query(
           `
@@ -305,6 +314,7 @@ export class AuthService {
       [user.id, passwordHash],
     );
     await this.clearRateLimit('reset_password', email);
+    await this.logSecurityEvent('auth.reset_password.success', 'reset_password', email, { userId: user.id });
 
     return { message: 'Clave actualizada.' };
   }
@@ -400,6 +410,10 @@ export class AuthService {
     if (!row) return;
 
     if (row.blocked_until && new Date(row.blocked_until).getTime() > Date.now()) {
+      await this.logSecurityEvent('auth.rate_limit.blocked', type, key, {
+        blockedUntil: row.blocked_until,
+        attempts: Number(row.attempts),
+      });
       throw new HttpException(
         'Demasiados intentos. Espera unos minutos antes de volver a intentar.',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -409,6 +423,9 @@ export class AuthService {
     const windowStartedAt = new Date(row.window_started_at).getTime();
     const windowMs = windowMinutes * 60 * 1000;
     if (Date.now() - windowStartedAt <= windowMs && Number(row.attempts) >= maxAttempts) {
+      await this.logSecurityEvent('auth.rate_limit.blocked', type, key, {
+        attempts: Number(row.attempts),
+      });
       throw new HttpException(
         'Demasiados intentos. Espera unos minutos antes de volver a intentar.',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -453,6 +470,30 @@ export class AuthService {
 
   private async clearRateLimit(type: string, key: string) {
     await this.db.query(`delete from auth_rate_limits where type = $1 and key = $2`, [type, key]);
+  }
+
+  private async logSecurityEvent(
+    action: string,
+    type: string,
+    key: string,
+    metadata: Record<string, unknown> = {},
+  ) {
+    await this.audit.log({
+      action,
+      entityType: 'auth_rate_limits',
+      entityId: undefined,
+      afterData: {
+        type,
+        key: this.maskEmail(key),
+        ...metadata,
+      },
+    }).catch((error) => {
+      this.logger.warn(
+        `auth.securityAudit.failed action=${action} reason=${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
   }
 
   private async assignDefaultRole(userId: string) {
