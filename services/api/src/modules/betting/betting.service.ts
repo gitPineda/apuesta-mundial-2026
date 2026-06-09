@@ -293,7 +293,8 @@ export class BettingService {
           and b.status = 'pending_payment'
           and (
             m.betting_closes_at <= now()
-            or b.created_at::date < current_date
+            or (b.created_at at time zone 'America/Guayaquil')::date
+              < (now() at time zone 'America/Guayaquil')::date
           )
       ),
       updated_bets as (

@@ -21,7 +21,8 @@ set status = 'void',
     settled_at = now()
 where b.status = 'pending_payment'
   and (
-    b.created_at::date < current_date
+    (b.created_at at time zone 'America/Guayaquil')::date
+      < (now() at time zone 'America/Guayaquil')::date
     or exists (
       select 1
       from bet_selections bs
