@@ -130,7 +130,13 @@ export class AuthService {
     }
 
     const roles = await this.getRoles(user.id);
-    if (user.active_session_id && new Date(user.active_session_expires_at).getTime() > Date.now()) {
+    const isAdmin = this.hasAdminRole(roles);
+    if (
+      !isAdmin &&
+      user.active_session_id &&
+      user.active_session_expires_at &&
+      new Date(user.active_session_expires_at).getTime() > Date.now()
+    ) {
       throw new ConflictException(
         'Ya existe una sesion activa para este usuario. Cierra la sesion anterior antes de ingresar en otro dispositivo.',
       );
@@ -330,6 +336,7 @@ export class AuthService {
       if (!payload.sid) {
         throw new UnauthorizedException('Sesion invalida.');
       }
+      const roles = payload.roles?.length ? payload.roles : ['user'];
       const session = await this.db.query(
         `
         select active_session_id, active_session_expires_at
@@ -341,8 +348,20 @@ export class AuthService {
         [payload.sub],
       );
       const profile = session.rows[0];
+      if (!profile) {
+        throw new UnauthorizedException(
+          'Tu sesion ya no esta activa o fue abierta en otro dispositivo. Ingresa nuevamente.',
+        );
+      }
+      if (this.hasAdminRole(roles)) {
+        return {
+          id: payload.sub,
+          email: payload.email,
+          roles,
+          sessionId: payload.sid,
+        };
+      }
       if (
-        !profile ||
         profile.active_session_id !== payload.sid ||
         !profile.active_session_expires_at ||
         new Date(profile.active_session_expires_at).getTime() <= Date.now()
@@ -354,7 +373,7 @@ export class AuthService {
       return {
         id: payload.sub,
         email: payload.email,
-        roles: payload.roles?.length ? payload.roles : ['user'],
+        roles,
         sessionId: payload.sid,
       };
     } catch {
@@ -524,6 +543,10 @@ export class AuthService {
       [userId],
     );
     return result.rows.map((row) => row.name);
+  }
+
+  private hasAdminRole(roles: string[]) {
+    return roles.includes('admin');
   }
 
   private generateCode() {
